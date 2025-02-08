@@ -68,9 +68,13 @@ def process_file(input_file_path, output_dir, cautious=False):
     result = json.loads(response.text)
     summary     = result.get("summary", "")
     keywords    = result.get("keywords", "")
-    new_filename = result.get("filename", "updated_file.pdf")
+    new_filename = result.get("filename", "")
     title       = result.get("title", "")
     
+    if summary == "" or keywords == "" or new_filename == "" or title == "":
+        print(f"Error: Metadata generation failed for {input_file_path}. Please check the Gemini API response.")
+        return
+
     print("Title:", title)
     print("Summary:", summary)
     print("Keywords:", keywords)
