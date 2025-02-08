@@ -41,16 +41,18 @@ PROMPT = (
     "relevant date and the original file extension."
 )
 
-def process_file(input_file_path, output_dir):
+def process_file(input_file_path, output_dir, cautious=False):
     """
     Processes a single PDF file:
       - Uploads the file to Gemini for metadata generation.
       - Parses the Gemini response.
       - Updates the PDF's XMP metadata with the title, summary, and keywords.
-      - Saves the updated PDF to the output directory with the new filename.
-      - Removes the original file.
+      - If cautious mode is enabled, asks for confirmation before:
+          a) Saving the updated PDF to the output directory.
+          b) Deleting the original file.
+      - Otherwise, it saves the updated file and then removes the original.
     """
-    print(f"Processing file: {input_file_path}")
+    print(f"\nProcessing file: {input_file_path}")
     
     # Upload the file for processing
     file_obj = client.files.upload(file=input_file_path)
@@ -61,9 +63,6 @@ def process_file(input_file_path, output_dir):
         config=generation_config,
         contents=[PROMPT, file_obj]
     )
-    
-    # Debug/log the raw response text if needed
-    # print(response.text)
     
     # Parse the JSON response from the model
     result = json.loads(response.text)
@@ -86,11 +85,28 @@ def process_file(input_file_path, output_dir):
         
         # Construct the full output path using the new filename
         output_file_path = os.path.join(output_dir, new_filename)
+        
+        # If cautious mode is enabled, ask for confirmation before saving.
+        if cautious:
+            answer = input(f"Do you want to save the updated file to '{output_file_path}'? (y/n): ")
+            if answer.strip().lower() != 'y':
+                print("Skipping saving of updated file.")
+                return
+        
+        # Save the updated PDF
         pdf.save(output_file_path)
+        print(f"Updated file saved to: {output_file_path}")
     
+    # If cautious mode is enabled, ask for confirmation before deleting the original file.
+    if cautious:
+        answer = input(f"Do you want to delete the original file '{input_file_path}'? (y/n): ")
+        if answer.strip().lower() != 'y':
+            print("Skipping deletion of original file.")
+            return
+
     # Remove the original file after processing
     os.remove(input_file_path)
-    print(f"Processed and moved file to: {output_file_path}\n")
+    print(f"Original file '{input_file_path}' deleted.\n")
 
 
 def main():
@@ -119,7 +135,12 @@ def main():
         "task_pause_time",
         type=int,
         default=60,
-        help="Amount of time to pause between task (default: 60)"
+        help="Amount of time to pause between processing each file (default: 60)"
+    )
+    parser.add_argument(
+        "--cautious",
+        action="store_true",
+        help="Enable cautious mode to ask for confirmation before saving and deleting files."
     )
     args = parser.parse_args()
     
@@ -128,6 +149,7 @@ def main():
     output_dir = args.output_dir
     interval = args.poll_interval
     pause_time = args.task_pause_time
+    cautious = args.cautious
     
     # Verify that the input and output directories exist
     if not os.path.isdir(input_dir):
@@ -139,7 +161,8 @@ def main():
     
     print(f"Monitoring directory: {input_dir} for files matching: {file_pattern}")
     print(f"Processed files will be saved to: {output_dir}")
-    print(f"Polling interval: {interval} seconds\n")
+    print(f"Polling interval: {interval} seconds")
+    print(f"Cautious mode: {'ON' if cautious else 'OFF'}\n")
     
     # Continuously monitor the input directory
     while True:
@@ -149,15 +172,12 @@ def main():
         if matching_files:
             for file_path in matching_files:
                 try:
-                    process_file(file_path, output_dir)
+                    process_file(file_path, output_dir, cautious=cautious)
                 except Exception as e:
                     print(f"Error processing file '{file_path}': {e}")
+                # Pause between processing tasks
                 time.sleep(pause_time)
-        else:
-            # No matching files found
-            pass
-        
-        # Wait for the specified interval before checking again
+        # Wait for the specified polling interval before checking again
         time.sleep(interval)
 
 if __name__ == '__main__':
