@@ -8,10 +8,10 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
-# Load environment variables (for GEMINI_KEY)
+# Load environment variables (for GEMINI_KEY and others)
 load_dotenv()
 
-# Initialize the Gemini AI client
+# Initialize the Gemini AI client using GEMINI_KEY from .env
 gemini_key = os.getenv("GEMINI_KEY")
 client = genai.Client(api_key=gemini_key)
 
@@ -118,33 +118,37 @@ def main():
         description="Monitor an input directory for files matching a pattern and process them."
     )
     parser.add_argument(
-        "input_dir",
-        help="Directory to monitor for incoming PDF files"
+        "--input_dir",
+        default=os.getenv("INPUT_DIR"),
+        help="Directory to monitor for incoming PDF files (or set via .env: INPUT_DIR)"
     )
     parser.add_argument(
-        "file_pattern",
-        help="File pattern to match (e.g., '*.pdf')"
+        "--file_pattern",
+        default=os.getenv("FILE_PATTERN", "*.pdf"),
+        help="File pattern to match (e.g., '*.pdf') (or set via .env: FILE_PATTERN)"
     )
     parser.add_argument(
-        "output_dir",
-        help="Directory where the processed files will be saved"
+        "--output_dir",
+        default=os.getenv("OUTPUT_DIR"),
+        help="Directory where the processed files will be saved (or set via .env: OUTPUT_DIR)"
     )
     parser.add_argument(
-        "poll_interval",
+        "--poll_interval",
         type=int,
-        default=5,
-        help="Polling interval (in seconds) for checking the input directory (default: 5)"
+        default=int(os.getenv("POLL_INTERVAL", 5)),
+        help="Polling interval (in seconds) for checking the input directory (default: 5 or via .env: POLL_INTERVAL)"
     )
     parser.add_argument(
-        "task_pause_time",
+        "--task_pause_time",
         type=int,
-        default=60,
-        help="Amount of time to pause between processing each file (default: 60)"
+        default=int(os.getenv("TASK_PAUSE_TIME", 60)),
+        help="Amount of time to pause between processing each file (default: 60 or via .env: TASK_PAUSE_TIME)"
     )
     parser.add_argument(
         "--cautious",
         action="store_true",
-        help="Enable cautious mode to ask for confirmation before saving and deleting files."
+        default=(os.getenv("CAUTIOUS", "False").lower() in ["true", "1", "yes"]),
+        help="Enable cautious mode to ask for confirmation before saving and deleting files (or set via .env: CAUTIOUS)"
     )
     args = parser.parse_args()
     
@@ -156,6 +160,12 @@ def main():
     cautious = args.cautious
     
     # Verify that the input and output directories exist
+    if input_dir is None:
+        print("Error: Input directory not provided. Use --input_dir or set INPUT_DIR in your .env file.")
+        exit(1)
+    if output_dir is None:
+        print("Error: Output directory not provided. Use --output_dir or set OUTPUT_DIR in your .env file.")
+        exit(1)
     if not os.path.isdir(input_dir):
         print(f"Error: Input directory '{input_dir}' does not exist.")
         exit(1)
@@ -166,6 +176,7 @@ def main():
     print(f"Monitoring directory: {input_dir} for files matching: {file_pattern}")
     print(f"Processed files will be saved to: {output_dir}")
     print(f"Polling interval: {interval} seconds")
+    print(f"Task pause time: {pause_time} seconds")
     print(f"Cautious mode: {'ON' if cautious else 'OFF'}\n")
     
     # Continuously monitor the input directory
