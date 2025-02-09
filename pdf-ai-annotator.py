@@ -35,10 +35,12 @@ generation_config = {
 
 # The prompt to be used for generating metadata
 PROMPT = (
-    "Review the file. Your task is to produce a 4 sentence summary, "
-    "list of 100 keywords, an informative title, and a suitable filename "
-    "that would be informative yet terse. The filename should include a "
-    "relevant date and the original file extension."
+"""
+Review the file. Your task is to produce a 4 sentence summary, 
+list of 100 keywords, an informative title, and a suitable filename 
+that would be informative yet terse ending with the pdf file extension.
+The filename should include a relevant date.
+"""
 )
 
 def process_file(input_file_path, output_dir, cautious=False):
