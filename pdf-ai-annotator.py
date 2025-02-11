@@ -76,6 +76,10 @@ def process_file(input_file_path, output_dir, cautious=False):
     if summary == "" or keywords == "" or new_filename == "" or title == "":
         print(f"Error: Metadata generation failed for {input_file_path}. Please check the Gemini API response.")
         return
+    
+    if new_filename[-4:] != ".pdf":
+        print(f"Error: The generated filename '{new_filename}' does not end with '.pdf'.")
+        return
 
     print("Title:", title)
     print("Summary:", summary)
