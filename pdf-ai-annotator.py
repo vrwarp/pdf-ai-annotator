@@ -5,8 +5,14 @@ import json
 import argparse
 import pikepdf
 from google import genai
-from google.genai import types
 from dotenv import load_dotenv
+from pydantic import BaseModel
+
+class PdfAiAnnotations(BaseModel):
+  summary: str
+  keywords: str
+  title: str
+  filename: str
 
 # Load environment variables (for GEMINI_KEY and others)
 load_dotenv()
@@ -21,15 +27,7 @@ generation_config = {
     "top_p": 0.95,
     "top_k": 64,
     "max_output_tokens": 8192,
-    "response_schema": types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "summary": types.Schema(type=types.Type.STRING),
-            "keywords": types.Schema(type=types.Type.STRING),
-            "filename": types.Schema(type=types.Type.STRING),
-            "title": types.Schema(type=types.Type.STRING),
-        },
-    ),
+    "response_schema": PdfAiAnnotations,
     "response_mime_type": "application/json",
 }
 
@@ -67,11 +65,11 @@ def process_file(input_file_path, output_dir, cautious=False):
     )
     
     # Parse the JSON response from the model
-    result = json.loads(response.text)
-    summary     = result.get("summary", "")
-    keywords    = result.get("keywords", "")
-    new_filename = result.get("filename", "")
-    title       = result.get("title", "")
+    result: PdfAiAnnotations = response.parsed
+    summary = result.summary
+    keywords = result.keywords
+    new_filename = result.filename
+    title = result.title
     
     if summary == "" or keywords == "" or new_filename == "" or title == "":
         print(f"Error: Metadata generation failed for {input_file_path}. Please check the Gemini API response.")
