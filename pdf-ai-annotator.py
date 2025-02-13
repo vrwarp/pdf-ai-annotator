@@ -34,10 +34,89 @@ generation_config = {
 # The prompt to be used for generating metadata
 PROMPT = (
 """
-Review the file. Your task is to produce a 4 sentence summary, 
-list of 100 keywords, an informative title, and a suitable filename 
-that would be informative yet terse ending with the pdf file extension.
-The filename should include a relevant date.
+## Instructions for Document Processing
+
+Hi team, your role is to process scanned documents so they are easy to find and understand. For each document, please follow these steps:
+
+**Step 1: Quickly Understand the Document**
+
+*   Take a moment to read through the document and get a general idea of what it's about.
+    *   **What is the main topic?** (e.g., Medical bill, Financial statement)
+    *   **Who sent it or created it?** (e.g., Doctor's office, Bank, Company name)
+    *   **What kind of document is it?** (e.g., Invoice, Report, Letter)
+    *   **What date is mentioned in the document?** (Look for dates at the top, in headers, or within the text)
+
+**Step 2: Write a Short Summary**
+
+*   Write a very brief summary of the document in just one or two sentences.
+    *   **Focus on the most important information.**  Imagine you are telling a coworker what this document is in a few seconds.
+    *   **Example:** "This document is a medical invoice from Dr. Smith for services provided to John Doe in October 2024."
+
+**Step 3: List Key Topics (Keywords)**
+
+*   Think about the main subjects, people, and things the document is about. List up to **10 keywords** that someone could use to search for this document later.
+    *   **Think of words people might type into a search bar.**
+    *   **Examples:**  `Invoice`, `Medical`, `Smith`, `October`, `2024`, `John Doe`, `Bill`, `Healthcare`, `Payment`, `Services`
+
+**Step 4: Create an Informative Title**
+
+*   Write a short title that quickly tells you what the document is. This title is for our use to easily understand the file.
+    *   **Keep it brief but clear.**
+    *   **Example:** `Medical Invoice - Dr. Smith - John Doe - Oct 2024`
+
+**Step 5: Create a Suitable Filename (Very Important!)**
+
+*   Now, create a filename for the document using the standard below. **This is crucial for keeping our files organized.**
+
+---
+
+**File Naming Standard**
+
+To keep all our files in order, we use a specific system to name them. Please follow this exactly:
+
+**`[Date]_[Category]_[Source]_[Description]_[Details].pdf`**
+
+*   **Date:** This is usually the date on the document itself.
+    *   **Preferred Format:** If the **full date (Day, Month, and Year)** is available, use **`YYYYMMDD`** format (Year, Month, Day).
+        *   **Example:** For January 5th, 2025, use `20250105`
+    *   **If the exact Day is missing:**  Use **`YYYYMM00`** format (Year, Month, `00` for day).
+        *   **Example:** If the document is dated "January 2025" but no specific day, use `20250100`
+    *   **If the Month and Day are missing (only Year is available):** Use **`YYYY0000`** format (Year, `00` for month, `00` for day).
+        *   **Example:** If the document only says "2025", use `20250000`
+    *   **If the Year is clear, but Month and Day are implied (e.g., "October Invoice" in a known year):** Use your best judgment. If the year is clearly related to the document's content, use `YYYYMM00` or `YYYYMMDD` if you can infer the month, otherwise use `YYYY0000`. **When in doubt, use the least specific date you are certain about.**
+    *   **Rare cases: Month and Day known, but Year unclear:**  In extremely rare cases, if only Month and Day are truly identifiable, use **`0000MMDD`**.  **Double-check if you can find any year context.**
+        *   **Example (very unusual):** If a very old document only has "March 15th" written, and no year can be found anywhere, use `00000315`. **This should be a last resort.**
+
+    *   **Put the Date *first* in the filename.**
+
+*   **Category:** Use a single, short word to group similar files together. Choose from these examples, or use your best judgment if it fits:
+    *   **Examples:** `Medical`, `Financial`, `Insurance`, `Vehicle`, `Legal`, `ProjectA`, `ClientB`, `VendorC`
+*   **Source:**  Who or where did this document come from?  Use a short, recognizable name.
+    *   **Examples:** `Google`, `CityHall`, `DrJones`, `AcmeCorp`, `Internal` (if we created it ourselves)
+*   **Description:** Briefly describe what the document *is*.  Use simple words.
+    *   **Examples:** `Invoice`, `Report`, `Minutes`, `Agreement`, `Statement`, `Email`, `Form`
+*   **Details:** Add extra information *only if needed* to tell similar files apart.  For example, a patient name, account number, or project phase.
+    *   **Use hyphens** to separate words within the Details section.
+    *   **Only use this section if it's truly necessary to make the filename clearer.**
+    *   **Example:** `Patient-Johnson`, `Project-Phase2`, `Account-12345`
+
+*   **Important Notes for Filenames:**
+    *   **Separate each section with a single underscore** (`_`).
+    *   **Do not use any spaces** in the filename.
+    *   **Always end with `.pdf`** (if it's a PDF file).
+
+**Examples with Incomplete Dates:**
+
+*   **Document Date: "January 2025" (Day missing)**
+    *   Filename Example: `20250100_Financial_BankABC_Statement_Checking.pdf`
+*   **Document Date: "Year 2025" (Month and Day missing)**
+    *   Filename Example: `20250000_Legal_LawFirmXYZ_Contract_VendorAgreement.pdf`
+*   **Document Date: "March 15th" (Year completely missing - *very rare, use cautiously*)**
+    *   Filename Example: `00000315_Medical_ClinicGeneral_Appointment_Patient-JSmith.pdf` (*Use this very rarely and only if absolutely no year context exists*)
+
+**Example with Full Date:**
+
+`20250310_Financial_MyBank_Statement_Savings-Account.pdf`
 """
 )
 
