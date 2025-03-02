@@ -11,10 +11,10 @@ COPY requirements.txt .
 RUN pip install --progress-bar off --upgrade pip && pip install --progress-bar off -r requirements.txt
 
 # Copy the rest of your application code into the container.
-COPY pdf-ai-annotator.py .
+COPY pdf_ai_annotator.py .
 
 # Expose any ports if your app listens on one (not necessary for a simple batch script)
 # EXPOSE 8000
 
 # Set the default command to run your script.
-CMD ["python", "pdf-ai-annotator.py"]
+CMD ["python", "pdf_ai_annotator.py"]
