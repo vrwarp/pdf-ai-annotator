@@ -138,7 +138,7 @@ def process_file(input_file_path, output_dir, cautious=False):
     
     # Request metadata generation from Gemini
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-flash-latest",
         config=generation_config,
         contents=[PROMPT, file_obj]
     )
