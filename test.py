@@ -77,7 +77,7 @@ class TestPdfAiAnnotator(unittest.TestCase):
         # Assert
         mock_upload.assert_called_once_with(file=self.dummy_pdf_path)
         mock_generate_content.assert_called_once_with(
-            model="gemini-2.0-flash",
+            model="gemini-flash-latest",
             config=generation_config,
             contents=[PROMPT, "file_obj"],
         )
