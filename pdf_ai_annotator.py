@@ -197,6 +197,18 @@ def process_file(input_file_path, output_dir, cautious=False):
 
 
 def run_annotator(input_dir, file_pattern, output_dir, interval, pause_time, cautious, test_mode=False):
+    """
+    Monitors a directory for PDF files and processes them.
+
+    Args:
+        input_dir (str): The directory to monitor for incoming PDF files.
+        file_pattern (str): The file pattern to match (e.g., '*.pdf').
+        output_dir (str): The directory where the processed files will be saved.
+        interval (int): The polling interval (in seconds) for checking the input directory.
+        pause_time (int): The amount of time to pause between processing each file.
+        cautious (bool): If True, asks for confirmation before saving and deleting files.
+        test_mode (bool): If True, the function will only run once.
+    """
     # Verify that the input and output directories exist
     if input_dir is None:
         print("Error: Input directory not provided. Use --input_dir or set INPUT_DIR in your .env file.")
