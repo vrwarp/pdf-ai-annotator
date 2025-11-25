@@ -138,7 +138,7 @@ def process_file(input_file_path, output_dir, cautious=False):
     
     # Request metadata generation from Gemini
     response = client.models.generate_content(
-        model="gemini-flash-latest",
+        model="gemini-2.0-flash",
         config=generation_config,
         contents=[PROMPT, file_obj]
     )
@@ -196,6 +196,46 @@ def process_file(input_file_path, output_dir, cautious=False):
     print(f"Original file '{input_file_path}' deleted.\n")
 
 
+def run_annotator(input_dir, file_pattern, output_dir, interval, pause_time, cautious, test_mode=False):
+    # Verify that the input and output directories exist
+    if input_dir is None:
+        print("Error: Input directory not provided. Use --input_dir or set INPUT_DIR in your .env file.")
+        exit(1)
+    if output_dir is None:
+        print("Error: Output directory not provided. Use --output_dir or set OUTPUT_DIR in your .env file.")
+        exit(1)
+    if not os.path.isdir(input_dir):
+        print(f"Error: Input directory '{input_dir}' does not exist.")
+        exit(1)
+    if not os.path.isdir(output_dir):
+        print(f"Error: Output directory '{output_dir}' does not exist.")
+        exit(1)
+
+    print(f"Monitoring directory: {input_dir} for files matching: {file_pattern}")
+    print(f"Processed files will be saved to: {output_dir}")
+    print(f"Polling interval: {interval} seconds")
+    print(f"Task pause time: {pause_time} seconds")
+    print(f"Cautious mode: {'ON' if cautious else 'OFF'}\n")
+
+    # Continuously monitor the input directory
+    while True:
+        # Use glob to find files matching the file pattern in the input directory
+        matching_files = glob.glob(os.path.join(input_dir, file_pattern))
+
+        if matching_files:
+            for file_path in matching_files:
+                try:
+                    process_file(file_path, output_dir, cautious=cautious)
+                except Exception as e:
+                    print(f"Error processing file '{file_path}': {e}")
+                # Pause between processing tasks
+                time.sleep(pause_time)
+        # Wait for the specified polling interval before checking again
+        time.sleep(interval)
+        if test_mode:
+            break
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Monitor an input directory for files matching a pattern and process them."
@@ -234,49 +274,16 @@ def main():
         help="Enable cautious mode to ask for confirmation before saving and deleting files (or set via .env: CAUTIOUS)"
     )
     args = parser.parse_args()
-    
-    input_dir = args.input_dir
-    file_pattern = args.file_pattern
-    output_dir = args.output_dir
-    interval = args.poll_interval
-    pause_time = args.task_pause_time
-    cautious = args.cautious
-    
-    # Verify that the input and output directories exist
-    if input_dir is None:
-        print("Error: Input directory not provided. Use --input_dir or set INPUT_DIR in your .env file.")
-        exit(1)
-    if output_dir is None:
-        print("Error: Output directory not provided. Use --output_dir or set OUTPUT_DIR in your .env file.")
-        exit(1)
-    if not os.path.isdir(input_dir):
-        print(f"Error: Input directory '{input_dir}' does not exist.")
-        exit(1)
-    if not os.path.isdir(output_dir):
-        print(f"Error: Output directory '{output_dir}' does not exist.")
-        exit(1)
-    
-    print(f"Monitoring directory: {input_dir} for files matching: {file_pattern}")
-    print(f"Processed files will be saved to: {output_dir}")
-    print(f"Polling interval: {interval} seconds")
-    print(f"Task pause time: {pause_time} seconds")
-    print(f"Cautious mode: {'ON' if cautious else 'OFF'}\n")
-    
-    # Continuously monitor the input directory
-    while True:
-        # Use glob to find files matching the file pattern in the input directory
-        matching_files = glob.glob(os.path.join(input_dir, file_pattern))
-        
-        if matching_files:
-            for file_path in matching_files:
-                try:
-                    process_file(file_path, output_dir, cautious=cautious)
-                except Exception as e:
-                    print(f"Error processing file '{file_path}': {e}")
-                # Pause between processing tasks
-                time.sleep(pause_time)
-        # Wait for the specified polling interval before checking again
-        time.sleep(interval)
+
+    run_annotator(
+        args.input_dir,
+        args.file_pattern,
+        args.output_dir,
+        args.poll_interval,
+        args.task_pause_time,
+        args.cautious
+    )
+
 
 if __name__ == '__main__':
     main()

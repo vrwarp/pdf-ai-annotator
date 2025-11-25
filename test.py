@@ -11,6 +11,7 @@ from pdf_ai_annotator import (
     process_file,
     PROMPT,
     generation_config,
+    run_annotator,
 )  # Assuming your file is named pdf_ai_annotator.py
 
 
@@ -187,6 +188,50 @@ class TestPdfAiAnnotator(unittest.TestCase):
             # Assert
             mock_os_remove.assert_not_called()
             mock_pikepdf_open.assert_not_called()
+
+
+class TestRunAnnotator(unittest.TestCase):
+    def setUp(self):
+        self.input_dir = tempfile.mkdtemp()
+        self.output_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.input_dir)
+        shutil.rmtree(self.output_dir)
+
+    @patch('pdf_ai_annotator.process_file')
+    @patch('time.sleep', return_value=None)
+    @patch('glob.glob')
+    def test_run_annotator_success(self, mock_glob, mock_sleep, mock_process_file):
+        # Arrange
+        mock_glob.return_value = ['file1.pdf', 'file2.pdf']
+
+        # Act
+        run_annotator(self.input_dir, '*.pdf', self.output_dir, 5, 60, False, test_mode=True)
+
+        # Assert
+        mock_glob.assert_called_with(os.path.join(self.input_dir, '*.pdf'))
+        self.assertEqual(mock_process_file.call_count, 2)
+
+    def test_run_annotator_no_input_dir(self):
+        with self.assertRaises(SystemExit) as cm:
+            run_annotator(None, '*.pdf', self.output_dir, 5, 60, False)
+        self.assertEqual(cm.exception.code, 1)
+
+    def test_run_annotator_no_output_dir(self):
+        with self.assertRaises(SystemExit) as cm:
+            run_annotator(self.input_dir, '*.pdf', None, 5, 60, False)
+        self.assertEqual(cm.exception.code, 1)
+
+    def test_run_annotator_invalid_input_dir(self):
+        with self.assertRaises(SystemExit) as cm:
+            run_annotator('non_existent_dir', '*.pdf', self.output_dir, 5, 60, False)
+        self.assertEqual(cm.exception.code, 1)
+
+    def test_run_annotator_invalid_output_dir(self):
+        with self.assertRaises(SystemExit) as cm:
+            run_annotator(self.input_dir, '*.pdf', 'non_existent_dir', 5, 60, False)
+        self.assertEqual(cm.exception.code, 1)
 
 
 if __name__ == "__main__":
