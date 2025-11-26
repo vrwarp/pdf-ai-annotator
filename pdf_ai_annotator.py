@@ -122,14 +122,18 @@ To keep all our files in order, we use a specific system to name them. Please fo
 
 def process_file(input_file_path, output_dir, cautious=False):
     """
-    Processes a single PDF file:
-      - Uploads the file to Gemini for metadata generation.
-      - Parses the Gemini response.
-      - Updates the PDF's XMP metadata with the title, summary, and keywords.
-      - If cautious mode is enabled, asks for confirmation before:
-          a) Saving the updated PDF to the output directory.
-          b) Deleting the original file.
-      - Otherwise, it saves the updated file and then removes the original.
+    Processes a single PDF file by generating metadata and updating the file.
+
+    This function uploads a PDF file to a generative AI model to extract metadata,
+    including a summary, keywords, a new title, and a filename. It then updates
+    the PDF's XMP metadata with this information.
+
+    Args:
+        input_file_path (str): The path to the input PDF file.
+        output_dir (str): The directory where the processed file will be saved.
+        cautious (bool, optional): If True, the function will prompt for
+            confirmation before saving the new file and deleting the old one.
+            Defaults to False.
     """
     print(f"\nProcessing file: {input_file_path}")
     
@@ -196,7 +200,62 @@ def process_file(input_file_path, output_dir, cautious=False):
     print(f"Original file '{input_file_path}' deleted.\n")
 
 
+def run_annotator(input_dir, file_pattern, output_dir, interval, pause_time, cautious, test_mode=False):
+    """
+    Monitors a directory for PDF files and processes them.
+
+    Args:
+        input_dir (str): The directory to monitor for incoming PDF files.
+        file_pattern (str): The file pattern to match (e.g., '*.pdf').
+        output_dir (str): The directory where the processed files will be saved.
+        interval (int): The polling interval (in seconds) for checking the input directory.
+        pause_time (int): The amount of time to pause between processing each file.
+        cautious (bool): If True, asks for confirmation before saving and deleting files.
+        test_mode (bool): If True, the function will only run once.
+    """
+    # Verify that the input and output directories exist
+    if input_dir is None:
+        print("Error: Input directory not provided. Use --input_dir or set INPUT_DIR in your .env file.")
+        exit(1)
+    if output_dir is None:
+        print("Error: Output directory not provided. Use --output_dir or set OUTPUT_DIR in your .env file.")
+        exit(1)
+    if not os.path.isdir(input_dir):
+        print(f"Error: Input directory '{input_dir}' does not exist.")
+        exit(1)
+    if not os.path.isdir(output_dir):
+        print(f"Error: Output directory '{output_dir}' does not exist.")
+        exit(1)
+
+    print(f"Monitoring directory: {input_dir} for files matching: {file_pattern}")
+    print(f"Processed files will be saved to: {output_dir}")
+    print(f"Polling interval: {interval} seconds")
+    print(f"Task pause time: {pause_time} seconds")
+    print(f"Cautious mode: {'ON' if cautious else 'OFF'}\n")
+
+    # Continuously monitor the input directory
+    while True:
+        # Use glob to find files matching the file pattern in the input directory
+        matching_files = glob.glob(os.path.join(input_dir, file_pattern))
+
+        if matching_files:
+            for file_path in matching_files:
+                try:
+                    process_file(file_path, output_dir, cautious=cautious)
+                except Exception as e:
+                    print(f"Error processing file '{file_path}': {e}")
+                # Pause between processing tasks
+                time.sleep(pause_time)
+        # Wait for the specified polling interval before checking again
+        time.sleep(interval)
+        if test_mode:
+            break
+
+
 def main():
+    """
+    Parses command-line arguments and starts the PDF annotator.
+    """
     parser = argparse.ArgumentParser(
         description="Monitor an input directory for files matching a pattern and process them."
     )
@@ -234,49 +293,16 @@ def main():
         help="Enable cautious mode to ask for confirmation before saving and deleting files (or set via .env: CAUTIOUS)"
     )
     args = parser.parse_args()
-    
-    input_dir = args.input_dir
-    file_pattern = args.file_pattern
-    output_dir = args.output_dir
-    interval = args.poll_interval
-    pause_time = args.task_pause_time
-    cautious = args.cautious
-    
-    # Verify that the input and output directories exist
-    if input_dir is None:
-        print("Error: Input directory not provided. Use --input_dir or set INPUT_DIR in your .env file.")
-        exit(1)
-    if output_dir is None:
-        print("Error: Output directory not provided. Use --output_dir or set OUTPUT_DIR in your .env file.")
-        exit(1)
-    if not os.path.isdir(input_dir):
-        print(f"Error: Input directory '{input_dir}' does not exist.")
-        exit(1)
-    if not os.path.isdir(output_dir):
-        print(f"Error: Output directory '{output_dir}' does not exist.")
-        exit(1)
-    
-    print(f"Monitoring directory: {input_dir} for files matching: {file_pattern}")
-    print(f"Processed files will be saved to: {output_dir}")
-    print(f"Polling interval: {interval} seconds")
-    print(f"Task pause time: {pause_time} seconds")
-    print(f"Cautious mode: {'ON' if cautious else 'OFF'}\n")
-    
-    # Continuously monitor the input directory
-    while True:
-        # Use glob to find files matching the file pattern in the input directory
-        matching_files = glob.glob(os.path.join(input_dir, file_pattern))
-        
-        if matching_files:
-            for file_path in matching_files:
-                try:
-                    process_file(file_path, output_dir, cautious=cautious)
-                except Exception as e:
-                    print(f"Error processing file '{file_path}': {e}")
-                # Pause between processing tasks
-                time.sleep(pause_time)
-        # Wait for the specified polling interval before checking again
-        time.sleep(interval)
+
+    run_annotator(
+        args.input_dir,
+        args.file_pattern,
+        args.output_dir,
+        args.poll_interval,
+        args.task_pause_time,
+        args.cautious
+    )
+
 
 if __name__ == '__main__':
     main()
