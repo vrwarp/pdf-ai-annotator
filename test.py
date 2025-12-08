@@ -101,7 +101,7 @@ class TestPdfAiAnnotator(unittest.TestCase):
         mock_pdf.open_metadata.assert_called_once()
         mock_meta.__setitem__.assert_any_call("dc:title", self.sample_gemini_response["title"])
         mock_meta.__setitem__.assert_any_call("dc:description", self.sample_gemini_response["summary"])
-        mock_meta.__setitem__.assert_any_call("dc:subject", self.sample_gemini_response["keywords"])
+        mock_meta.__setitem__.assert_any_call("dc:subject", [k.strip() for k in self.sample_gemini_response["keywords"].split(',')])
 
         expected_output_file_path = os.path.join(self.output_dir, self.sample_gemini_response["filename"])
         mock_pdf.save.assert_called_once_with(expected_output_file_path)
@@ -257,6 +257,40 @@ class TestPdfAiAnnotator(unittest.TestCase):
         # Assert
         expected_path = os.path.join(self.output_dir, sanitized_filename)
         mock_pdf.save.assert_called_once_with(expected_path)
+
+    @patch("os.remove")
+    @patch("pikepdf.open", autospec=True)
+    @patch("pdf_ai_annotator.client.files.upload")
+    @patch("pdf_ai_annotator.client.models.generate_content")
+    def test_dc_subject_assignment_is_list(
+        self,
+        mock_generate_content,
+        mock_upload,
+        mock_pikepdf_open,
+        mock_os_remove,
+    ):
+        """
+        Tests that dc:subject is assigned a list of keywords, not a string.
+        """
+        # Arrange
+        mock_upload.return_value = "file_obj"
+        # Return a response with keywords as a comma-separated string
+        mock_generate_content.return_value.parsed = PdfAiAnnotations(
+            summary="Summary",
+            keywords="keyword1, keyword2",
+            title="Title",
+            filename="file.pdf"
+        )
+
+        mock_pdf = mock_pikepdf_open.return_value.__enter__.return_value
+        mock_meta = mock_pdf.open_metadata.return_value.__enter__.return_value
+
+        # Act
+        process_file(self.dummy_pdf_path, self.output_dir)
+
+        # Assert
+        # This assertion verifies that dc:subject is assigned a LIST, not a string.
+        mock_meta.__setitem__.assert_any_call("dc:subject", ["keyword1", "keyword2"])
 
 
 if __name__ == "__main__":
