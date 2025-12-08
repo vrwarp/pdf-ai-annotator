@@ -224,6 +224,40 @@ class TestPdfAiAnnotator(unittest.TestCase):
             mock_os_remove.assert_not_called()
             mock_pikepdf_open.assert_not_called()
 
+    @patch("os.remove")
+    @patch("pikepdf.open", autospec=True)
+    @patch("pdf_ai_annotator.client.files.upload")
+    @patch("pdf_ai_annotator.client.models.generate_content")
+    def test_path_traversal_sanitized(
+        self,
+        mock_generate_content,
+        mock_upload,
+        mock_pikepdf_open,
+        mock_os_remove,
+    ):
+        # Arrange
+        malicious_filename = "../malicious.pdf"
+        sanitized_filename = "malicious.pdf"
+
+        malicious_response = {
+            "summary": "Summary",
+            "keywords": "Keywords",
+            "title": "Title",
+            "filename": malicious_filename,
+        }
+
+        mock_upload.return_value = "file_obj"
+        mock_generate_content.return_value.parsed = PdfAiAnnotations(**malicious_response)
+
+        mock_pdf = mock_pikepdf_open.return_value.__enter__.return_value
+
+        # Act
+        process_file(self.dummy_pdf_path, self.output_dir)
+
+        # Assert
+        expected_path = os.path.join(self.output_dir, sanitized_filename)
+        mock_pdf.save.assert_called_once_with(expected_path)
+
 
 if __name__ == "__main__":
     unittest.main()

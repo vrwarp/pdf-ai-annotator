@@ -161,7 +161,7 @@ def process_file(input_file_path, output_dir, cautious=False):
     result: PdfAiAnnotations = response.parsed
     summary = result.summary
     keywords = result.keywords
-    new_filename = result.filename
+    new_filename = os.path.basename(result.filename)
     title = result.title
     
     if summary == "" or keywords == "" or new_filename == "" or title == "":
