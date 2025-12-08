@@ -1,4 +1,5 @@
 import os
+import sys
 import glob
 import time
 import json
@@ -245,16 +246,16 @@ def main():
     # Verify that the input and output directories exist
     if input_dir is None:
         print("Error: Input directory not provided. Use --input_dir or set INPUT_DIR in your .env file.")
-        exit(1)
+        sys.exit(1)
     if output_dir is None:
         print("Error: Output directory not provided. Use --output_dir or set OUTPUT_DIR in your .env file.")
-        exit(1)
+        sys.exit(1)
     if not os.path.isdir(input_dir):
         print(f"Error: Input directory '{input_dir}' does not exist.")
-        exit(1)
+        sys.exit(1)
     if not os.path.isdir(output_dir):
         print(f"Error: Output directory '{output_dir}' does not exist.")
-        exit(1)
+        sys.exit(1)
     
     print(f"Monitoring directory: {input_dir} for files matching: {file_pattern}")
     print(f"Processed files will be saved to: {output_dir}")
