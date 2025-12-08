@@ -178,7 +178,7 @@ def process_file(input_file_path, output_dir, cautious=False):
     print("New filename:", new_filename)
     
     # Open the PDF and update its metadata using pikepdf's open_metadata interface.
-    with pikepdf.open(input_file_path) as pdf:
+    with pikepdf.open(input_file_path, allow_overwriting_input=True) as pdf:
         with pdf.open_metadata() as meta:
             meta["dc:title"] = title
             meta["dc:description"] = summary
@@ -198,6 +198,18 @@ def process_file(input_file_path, output_dir, cautious=False):
         pdf.save(output_file_path)
         print(f"Updated file saved to: {output_file_path}")
     
+    # Check if the input and output files are the same to avoid deleting the newly saved file
+    # We use os.path.abspath comparison as a fallback, but could use os.path.samefile if available and file exists
+    try:
+        if os.path.samefile(input_file_path, output_file_path):
+            print(f"Input and output files are the same ('{input_file_path}'). Skipping deletion.")
+            return
+    except OSError:
+        # Fallback for systems/cases where samefile might fail (e.g. file doesn't exist yet, though it should here)
+        if os.path.abspath(input_file_path) == os.path.abspath(output_file_path):
+            print(f"Input and output files are the same ('{input_file_path}'). Skipping deletion.")
+            return
+
     # If cautious mode is enabled, ask for confirmation before deleting the original file.
     if cautious:
         answer = input(f"Do you want to delete the original file '{input_file_path}'? (y/n): ")

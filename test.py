@@ -97,7 +97,7 @@ class TestPdfAiAnnotator(unittest.TestCase):
             contents=[PROMPT, "file_obj"],
         )
 
-        mock_pikepdf_open.assert_called_once_with(self.dummy_pdf_path)
+        mock_pikepdf_open.assert_called_once_with(self.dummy_pdf_path, allow_overwriting_input=True)
         mock_pdf.open_metadata.assert_called_once()
         mock_meta.__setitem__.assert_any_call("dc:title", self.sample_gemini_response["title"])
         mock_meta.__setitem__.assert_any_call("dc:description", self.sample_gemini_response["summary"])
@@ -257,6 +257,48 @@ class TestPdfAiAnnotator(unittest.TestCase):
         # Assert
         expected_path = os.path.join(self.output_dir, sanitized_filename)
         mock_pdf.save.assert_called_once_with(expected_path)
+
+
+    @patch("os.remove")
+    @patch("pikepdf.open", autospec=True)
+    @patch("pdf_ai_annotator.client.files.upload")
+    @patch("pdf_ai_annotator.client.models.generate_content")
+    def test_process_file_overwrite_same_file(
+        self,
+        mock_generate_content,
+        mock_upload,
+        mock_pikepdf_open,
+        mock_os_remove,
+    ):
+        """
+        Tests processing when input and output files are the same.
+
+        Verifies that allow_overwriting_input=True is used and deletion is skipped.
+        """
+        # Arrange
+        mock_upload.return_value = "file_obj"
+
+        # Setup mock response where filename matches input filename
+        input_filename = os.path.basename(self.dummy_pdf_path)
+        response_data = self.sample_gemini_response.copy()
+        response_data['filename'] = input_filename
+        mock_generate_content.return_value.parsed = PdfAiAnnotations(**response_data)
+
+        mock_pdf = mock_pikepdf_open.return_value.__enter__.return_value
+        mock_meta = mock_pdf.open_metadata.return_value.__enter__.return_value
+
+        # Act
+        # Use same directory for output so path resolves to same file
+        process_file(self.dummy_pdf_path, self.input_dir)
+
+        # Assert
+        mock_pikepdf_open.assert_called_once_with(self.dummy_pdf_path, allow_overwriting_input=True)
+
+        # Verify save called with same path
+        mock_pdf.save.assert_called_once_with(self.dummy_pdf_path)
+
+        # Verify deletion was skipped (since we overwrote the file)
+        mock_os_remove.assert_not_called()
 
 
 if __name__ == "__main__":
