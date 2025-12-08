@@ -15,7 +15,14 @@ from pdf_ai_annotator import (
 
 
 class TestPdfAiAnnotator(unittest.TestCase):
+    """
+    Unit tests for the PdfAiAnnotator application.
+    """
+
     def setUp(self):
+        """
+        Sets up the test environment by creating temporary directories and a dummy PDF file.
+        """
         # Create temporary directories for input and output
         self.input_dir = tempfile.mkdtemp()
         self.output_dir = tempfile.mkdtemp()
@@ -48,6 +55,9 @@ class TestPdfAiAnnotator(unittest.TestCase):
         ]
 
     def tearDown(self):
+        """
+        Cleans up the test environment by removing the temporary directories.
+        """
         # Clean up temporary directories
         shutil.rmtree(self.input_dir)
         shutil.rmtree(self.output_dir)
@@ -63,6 +73,12 @@ class TestPdfAiAnnotator(unittest.TestCase):
         mock_pikepdf_open,
         mock_os_remove,
     ):
+        """
+        Tests the successful processing of a file.
+
+        Verifies that the file is uploaded, metadata is generated and applied,
+        the file is saved to the correct location, and the original file is removed.
+        """
         # Arrange
         mock_upload.return_value = "file_obj"
         mock_generate_content.return_value.parsed = PdfAiAnnotations(**self.sample_gemini_response)
@@ -76,7 +92,7 @@ class TestPdfAiAnnotator(unittest.TestCase):
         # Assert
         mock_upload.assert_called_once_with(file=self.dummy_pdf_path)
         mock_generate_content.assert_called_once_with(
-            model="gemini-2.0-flash",
+            model="gemini-flash-latest",
             config=generation_config,
             contents=[PROMPT, "file_obj"],
         )
@@ -102,6 +118,11 @@ class TestPdfAiAnnotator(unittest.TestCase):
         mock_pikepdf_open,
         mock_os_remove,
     ):
+        """
+        Tests cautious mode where the user declines to save the file.
+
+        Verifies that `save` and `remove` are not called.
+        """
         # Arrange
         mock_upload.return_value = "file_obj"
         mock_generate_content.return_value.parsed = PdfAiAnnotations(**self.sample_gemini_response)
@@ -126,6 +147,11 @@ class TestPdfAiAnnotator(unittest.TestCase):
         mock_pikepdf_open,
         mock_os_remove,
     ):
+        """
+        Tests cautious mode where the user saves the file but declines to delete the original.
+
+        Verifies that `save` is called but `remove` is not.
+        """
         # Arrange
         mock_upload.return_value = "file_obj"
         mock_generate_content.return_value.parsed = PdfAiAnnotations(**self.sample_gemini_response)
@@ -151,6 +177,11 @@ class TestPdfAiAnnotator(unittest.TestCase):
             mock_pikepdf_open,
             mock_os_remove
     ):
+        """
+        Tests successful processing in cautious mode with user confirmation.
+
+        Verifies that both `save` and `remove` are called when the user confirms both.
+        """
         # Arrange
         mock_upload.return_value = "file_obj"
         mock_generate_content.return_value.parsed = PdfAiAnnotations(**self.sample_gemini_response)
@@ -176,6 +207,11 @@ class TestPdfAiAnnotator(unittest.TestCase):
             mock_pikepdf_open,
             mock_os_remove
     ):
+        """
+        Tests that processing halts if any required metadata is missing from the API response.
+
+        Verifies that `save` and `remove` are not called for invalid responses.
+        """
         for invalid_response in self.invalid_gemini_responses:
             # Arrange
             mock_upload.return_value = "file_obj"

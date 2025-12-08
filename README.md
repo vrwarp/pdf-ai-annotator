@@ -93,6 +93,22 @@ Each flag has a corresponding environment variable which you can set in your `.e
 - `POLL_INTERVAL`
 - `TASK_PAUSE_TIME`
 
+## Development
+
+If you want to contribute or modify the code, follow these steps to set up your development environment.
+
+### Running Tests
+
+This project includes a test suite using Python's `unittest` framework. To run the tests, execute the following command from the root directory:
+
+```bash
+python -m unittest test.py
+```
+
+### Docstrings
+
+All functions, methods, and classes are documented using **Google Style Python Docstrings**. Please ensure that any new code includes appropriate documentation.
+
 ## Docker Deployment
 
 You can easily containerize and deploy the application using Docker.
