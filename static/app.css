@@ -1,0 +1,28 @@
+/* Sidebar nav links */
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #94a3b8;
+  transition: background-color 0.15s, color 0.15s;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+.nav-link.active {
+  background-color: #312e81;
+  color: #a5b4fc;
+}
+
+/* Smooth scroll for log tables */
+#log-tbody {
+  scroll-behavior: smooth;
+}

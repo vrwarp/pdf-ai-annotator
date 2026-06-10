@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — PDF AI Annotator{% endblock %}
+
+{% block content %}
+<div class="p-8" x-data="dashboard()" x-init="init()">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+      <p class="text-sm text-gray-500 mt-1">Monitor and control the PDF AI annotation pipeline</p>
+    </div>
+
+    <!-- Start / Stop button -->
+    <div>
+      <template x-if="!running">
+        <button @click="startProcessor()"
+          class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Start Processor
+        </button>
+      </template>
+      <template x-if="running">
+        <button @click="stopProcessor()"
+          class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+          </svg>
+          Stop Processor
+        </button>
+      </template>
+    </div>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+
+    <!-- Status -->
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-medium text-gray-500">Status</p>
+        <div class="flex items-center gap-1.5">
+          <span class="relative flex h-2.5 w-2.5">
+            <span x-show="running" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5"
+              :class="running ? 'bg-green-400' : 'bg-gray-300'"></span>
+          </span>
+        </div>
+      </div>
+      <p class="mt-2 text-2xl font-semibold" :class="running ? 'text-green-600' : 'text-gray-400'"
+        x-text="running ? 'Running' : 'Stopped'"></p>
+      <p class="mt-1 text-xs text-gray-400" x-show="running && stats.started_at"
+        x-text="'Since ' + stats.started_at"></p>
+    </div>
+
+    <!-- Processed -->
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+      <p class="text-sm font-medium text-gray-500">Files Processed</p>
+      <p class="mt-2 text-2xl font-semibold text-gray-900" x-text="stats.processed"></p>
+      <p class="mt-1 text-xs text-gray-400" x-show="stats.last_file"
+        x-text="'Last: ' + stats.last_file"></p>
+    </div>
+
+    <!-- Errors -->
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+      <p class="text-sm font-medium text-gray-500">Errors</p>
+      <p class="mt-2 text-2xl font-semibold"
+        :class="stats.errors > 0 ? 'text-red-600' : 'text-gray-900'"
+        x-text="stats.errors"></p>
+      <p class="mt-1 text-xs text-gray-400">Since last start</p>
+    </div>
+
+    <!-- Config check -->
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+      <p class="text-sm font-medium text-gray-500">Configuration</p>
+      {% if config.get('GEMINI_KEY') and config.get('INPUT_DIR') and config.get('OUTPUT_DIR') %}
+        <p class="mt-2 text-2xl font-semibold text-green-600">Ready</p>
+        <p class="mt-1 text-xs text-gray-400">All required keys set</p>
+      {% else %}
+        <p class="mt-2 text-2xl font-semibold text-amber-500">Incomplete</p>
+        <a href="/config" class="mt-1 text-xs text-indigo-500 hover:underline">Configure now →</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Two-column info row -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- Configuration summary -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-900">Configuration Summary</h2>
+        <a href="/config" class="text-xs text-indigo-600 hover:underline">Edit</a>
+      </div>
+      <dl class="px-6 py-4 space-y-3">
+        {% set cfg_rows = [
+          ('Input Directory',  config.get('INPUT_DIR',       '— not set —')),
+          ('Output Directory', config.get('OUTPUT_DIR',      '— not set —')),
+          ('File Pattern',     config.get('FILE_PATTERN',    '*.pdf')),
+          ('Poll Interval',    (config.get('POLL_INTERVAL', '5') + ' s')),
+          ('Task Pause',       (config.get('TASK_PAUSE_TIME', '60') + ' s')),
+          ('Cautious Mode',    config.get('CAUTIOUS', 'false')),
+          ('Gemini Key',       '••••••••' if config.get('GEMINI_KEY') else '— not set —'),
+        ] %}
+        {% for label, val in cfg_rows %}
+        <div class="flex justify-between text-sm">
+          <dt class="text-gray-500">{{ label }}</dt>
+          <dd class="text-gray-900 font-mono text-xs max-w-[60%] truncate text-right">{{ val }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+    </div>
+
+    <!-- Recent logs -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-900">Recent Activity</h2>
+        <a href="/logs" class="text-xs text-indigo-600 hover:underline">View all</a>
+      </div>
+      <div class="divide-y divide-gray-50 max-h-64 overflow-y-auto" id="recent-logs">
+        <template x-for="(log, i) in recentLogs" :key="i">
+          <div class="flex items-start gap-3 px-6 py-3">
+            <span class="text-xs text-gray-400 font-mono flex-shrink-0 mt-0.5" x-text="log.ts"></span>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0"
+              :class="{
+                'bg-red-100 text-red-700': log.level === 'ERROR',
+                'bg-yellow-100 text-yellow-700': log.level === 'WARNING',
+                'bg-blue-100 text-blue-700': log.level === 'INFO'
+              }"
+              x-text="log.level"></span>
+            <span class="text-xs text-gray-600 truncate" x-text="log.msg"></span>
+          </div>
+        </template>
+        <template x-if="recentLogs.length === 0">
+          <div class="px-6 py-8 text-center text-sm text-gray-400">No activity yet</div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function dashboard() {
+  return {
+    running: {{ 'true' if is_running else 'false' }},
+    stats: {{ stats | tojson }},
+    recentLogs: [],
+
+    init() {
+      this.fetchLogs();
+      setInterval(() => { this.fetchStatus(); this.fetchLogs(); }, 3000);
+    },
+
+    async fetchStatus() {
+      try {
+        const r = await fetch('/api/status');
+        const d = await r.json();
+        this.running = d.is_running;
+        this.stats = d;
+      } catch (_) {}
+    },
+
+    async fetchLogs() {
+      try {
+        const r = await fetch('/api/logs');
+        const d = await r.json();
+        this.recentLogs = d.logs.slice(-10).reverse();
+      } catch (_) {}
+    },
+
+    async startProcessor() {
+      await fetch('/api/processor/start', { method: 'POST' });
+      this.running = true;
+      setTimeout(() => this.fetchStatus(), 500);
+    },
+
+    async stopProcessor() {
+      await fetch('/api/processor/stop', { method: 'POST' });
+      setTimeout(() => this.fetchStatus(), 1000);
+    },
+  };
+}
+</script>
+{% endblock %}

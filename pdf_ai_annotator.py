@@ -2,11 +2,14 @@ import os
 import glob
 import time
 import json
+import logging
 import argparse
 import pikepdf
 from google import genai
 from dotenv import load_dotenv
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 class PdfAiAnnotations(BaseModel):
   """
@@ -145,37 +148,37 @@ def process_file(input_file_path, output_dir, cautious=False):
     Returns:
         None
     """
-    print(f"\nProcessing file: {input_file_path}")
-    
+    logger.info(f"Processing file: {input_file_path}")
+
     # Upload the file for processing
     file_obj = client.files.upload(file=input_file_path)
-    
+
     # Request metadata generation from Gemini
     response = client.models.generate_content(
         model="gemini-flash-latest",
         config=generation_config,
         contents=[PROMPT, file_obj]
     )
-    
+
     # Parse the JSON response from the model
     result: PdfAiAnnotations = response.parsed
     summary = result.summary
     keywords = result.keywords
     new_filename = os.path.basename(result.filename)
     title = result.title
-    
+
     if summary == "" or keywords == "" or new_filename == "" or title == "":
-        print(f"Error: Metadata generation failed for {input_file_path}. Please check the Gemini API response.")
-        return
-    
-    if new_filename[-4:] != ".pdf":
-        print(f"Error: The generated filename '{new_filename}' does not end with '.pdf'.")
+        logger.error(f"Metadata generation failed for {input_file_path}. Please check the Gemini API response.")
         return
 
-    print("Title:", title)
-    print("Summary:", summary)
-    print("Keywords:", keywords)
-    print("New filename:", new_filename)
+    if new_filename[-4:] != ".pdf":
+        logger.error(f"The generated filename '{new_filename}' does not end with '.pdf'.")
+        return
+
+    logger.info(f"Title: {title}")
+    logger.info(f"Summary: {summary}")
+    logger.info(f"Keywords: {keywords}")
+    logger.info(f"New filename: {new_filename}")
     
     # Open the PDF and update its metadata using pikepdf's open_metadata interface.
     with pikepdf.open(input_file_path, allow_overwriting_input=True) as pdf:
@@ -191,35 +194,35 @@ def process_file(input_file_path, output_dir, cautious=False):
         if cautious:
             answer = input(f"Do you want to save the updated file to '{output_file_path}'? (y/n): ")
             if answer.strip().lower() != 'y':
-                print("Skipping saving of updated file.")
+                logger.info("Skipping saving of updated file.")
                 return
         
         # Save the updated PDF
         pdf.save(output_file_path)
-        print(f"Updated file saved to: {output_file_path}")
-    
+        logger.info(f"Updated file saved to: {output_file_path}")
+
     # Check if the input and output files are the same to avoid deleting the newly saved file
     # We use os.path.abspath comparison as a fallback, but could use os.path.samefile if available and file exists
     try:
         if os.path.samefile(input_file_path, output_file_path):
-            print(f"Input and output files are the same ('{input_file_path}'). Skipping deletion.")
+            logger.info(f"Input and output files are the same ('{input_file_path}'). Skipping deletion.")
             return
     except OSError:
         # Fallback for systems/cases where samefile might fail (e.g. file doesn't exist yet, though it should here)
         if os.path.abspath(input_file_path) == os.path.abspath(output_file_path):
-            print(f"Input and output files are the same ('{input_file_path}'). Skipping deletion.")
+            logger.info(f"Input and output files are the same ('{input_file_path}'). Skipping deletion.")
             return
 
     # If cautious mode is enabled, ask for confirmation before deleting the original file.
     if cautious:
         answer = input(f"Do you want to delete the original file '{input_file_path}'? (y/n): ")
         if answer.strip().lower() != 'y':
-            print("Skipping deletion of original file.")
+            logger.info("Skipping deletion of original file.")
             return
 
     # Remove the original file after processing
     os.remove(input_file_path)
-    print(f"Original file '{input_file_path}' deleted.\n")
+    logger.info(f"Original file '{input_file_path}' deleted.")
 
 
 def main():
@@ -280,25 +283,27 @@ def main():
     pause_time = args.task_pause_time
     cautious = args.cautious
     
+    logging.basicConfig(level=logging.INFO)
+
     # Verify that the input and output directories exist
     if input_dir is None:
-        print("Error: Input directory not provided. Use --input_dir or set INPUT_DIR in your .env file.")
+        logger.error("Input directory not provided. Use --input_dir or set INPUT_DIR in your .env file.")
         exit(1)
     if output_dir is None:
-        print("Error: Output directory not provided. Use --output_dir or set OUTPUT_DIR in your .env file.")
+        logger.error("Output directory not provided. Use --output_dir or set OUTPUT_DIR in your .env file.")
         exit(1)
     if not os.path.isdir(input_dir):
-        print(f"Error: Input directory '{input_dir}' does not exist.")
+        logger.error(f"Input directory '{input_dir}' does not exist.")
         exit(1)
     if not os.path.isdir(output_dir):
-        print(f"Error: Output directory '{output_dir}' does not exist.")
+        logger.error(f"Output directory '{output_dir}' does not exist.")
         exit(1)
-    
-    print(f"Monitoring directory: {input_dir} for files matching: {file_pattern}")
-    print(f"Processed files will be saved to: {output_dir}")
-    print(f"Polling interval: {interval} seconds")
-    print(f"Task pause time: {pause_time} seconds")
-    print(f"Cautious mode: {'ON' if cautious else 'OFF'}\n")
+
+    logger.info(f"Monitoring directory: {input_dir} for files matching: {file_pattern}")
+    logger.info(f"Processed files will be saved to: {output_dir}")
+    logger.info(f"Polling interval: {interval} seconds")
+    logger.info(f"Task pause time: {pause_time} seconds")
+    logger.info(f"Cautious mode: {'ON' if cautious else 'OFF'}")
     
     # Continuously monitor the input directory
     while True:
@@ -310,7 +315,7 @@ def main():
                 try:
                     process_file(file_path, output_dir, cautious=cautious)
                 except Exception as e:
-                    print(f"Error processing file '{file_path}': {e}")
+                    logger.error(f"Error processing file '{file_path}': {e}")
                 # Pause between processing tasks
                 time.sleep(pause_time)
         # Wait for the specified polling interval before checking again
