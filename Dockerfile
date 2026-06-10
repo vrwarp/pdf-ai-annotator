@@ -10,11 +10,15 @@ COPY requirements.txt .
 # Upgrade pip and install dependencies.
 RUN pip install --progress-bar off --upgrade pip && pip install --progress-bar off -r requirements.txt
 
-# Copy the rest of your application code into the container.
+# Copy application code and assets.
 COPY pdf_ai_annotator.py .
+COPY web_portal.py .
+COPY templates/ templates/
+COPY static/ static/
 
-# Expose any ports if your app listens on one (not necessary for a simple batch script)
-# EXPOSE 8000
+# Expose the web management portal port.
+EXPOSE 8000
 
-# Set the default command to run your script.
-CMD ["python", "pdf_ai_annotator.py"]
+# Default: start the web management portal.
+# To run the CLI annotator instead: docker run ... python pdf_ai_annotator.py
+CMD ["python", "web_portal.py"]

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Configuration — PDF AI Annotator{% endblock %}
+
+{% block content %}
+<div class="p-8 max-w-3xl">
+
+  <div class="mb-8">
+    <h1 class="text-2xl font-bold text-gray-900">Configuration</h1>
+    <p class="text-sm text-gray-500 mt-1">Settings are saved to the <code class="bg-gray-100 px-1 rounded">.env</code> file in the working directory</p>
+  </div>
+
+  {% if saved %}
+  <div class="mb-6 flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg">
+    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+    </svg>
+    Configuration saved successfully. Restart the processor to apply changes.
+  </div>
+  {% endif %}
+
+  <form method="post" action="/config" class="space-y-6">
+
+    <!-- AI Settings -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-900">AI Settings</h2>
+      </div>
+      <div class="px-6 py-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="GEMINI_KEY">
+            Gemini API Key <span class="text-red-500">*</span>
+          </label>
+          <input type="password" id="GEMINI_KEY" name="GEMINI_KEY"
+            value="{{ config.get('GEMINI_KEY', '') }}"
+            placeholder="AIza..."
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono" />
+          <p class="mt-1 text-xs text-gray-400">Your Google Gemini API key from Google AI Studio</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Directory Settings -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-900">Directories</h2>
+      </div>
+      <div class="px-6 py-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="INPUT_DIR">
+            Input Directory <span class="text-red-500">*</span>
+          </label>
+          <input type="text" id="INPUT_DIR" name="INPUT_DIR"
+            value="{{ config.get('INPUT_DIR', '') }}"
+            placeholder="/data/input"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono" />
+          <p class="mt-1 text-xs text-gray-400">Directory to watch for incoming PDF files</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="OUTPUT_DIR">
+            Output Directory <span class="text-red-500">*</span>
+          </label>
+          <input type="text" id="OUTPUT_DIR" name="OUTPUT_DIR"
+            value="{{ config.get('OUTPUT_DIR', '') }}"
+            placeholder="/data/output"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono" />
+          <p class="mt-1 text-xs text-gray-400">Directory where annotated PDFs are saved</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="FILE_PATTERN">
+            File Pattern
+          </label>
+          <input type="text" id="FILE_PATTERN" name="FILE_PATTERN"
+            value="{{ config.get('FILE_PATTERN', '*.pdf') }}"
+            placeholder="*.pdf"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono" />
+          <p class="mt-1 text-xs text-gray-400">Glob pattern to match files in the input directory</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timing Settings -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-900">Timing</h2>
+      </div>
+      <div class="px-6 py-6 grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="POLL_INTERVAL">
+            Poll Interval (seconds)
+          </label>
+          <input type="number" id="POLL_INTERVAL" name="POLL_INTERVAL" min="1" max="3600"
+            value="{{ config.get('POLL_INTERVAL', '5') }}"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+          <p class="mt-1 text-xs text-gray-400">How often to scan for new files</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5" for="TASK_PAUSE_TIME">
+            Task Pause (seconds)
+          </label>
+          <input type="number" id="TASK_PAUSE_TIME" name="TASK_PAUSE_TIME" min="0" max="3600"
+            value="{{ config.get('TASK_PAUSE_TIME', '60') }}"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+          <p class="mt-1 text-xs text-gray-400">Delay between processing each file</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Behavior Settings -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h2 class="text-sm font-semibold text-gray-900">Behavior</h2>
+      </div>
+      <div class="px-6 py-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="text-sm font-medium text-gray-700" for="CAUTIOUS">Cautious Mode</label>
+            <p class="text-xs text-gray-400 mt-0.5">Prompt before saving and deleting files (CLI only)</p>
+          </div>
+          <select id="CAUTIOUS" name="CAUTIOUS"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            <option value="false" {% if config.get('CAUTIOUS', 'false').lower() not in ('true','1','yes') %}selected{% endif %}>Disabled</option>
+            <option value="true"  {% if config.get('CAUTIOUS', 'false').lower() in ('true','1','yes') %}selected{% endif %}>Enabled</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save -->
+    <div class="flex justify-end">
+      <button type="submit"
+        class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+        Save Configuration
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
