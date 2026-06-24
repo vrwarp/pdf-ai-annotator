@@ -185,7 +185,7 @@ def process_file(input_file_path, output_dir, cautious=False):
         with pdf.open_metadata() as meta:
             meta["dc:title"] = title
             meta["dc:description"] = summary
-            meta["dc:subject"] = keywords
+            meta["dc:subject"] = [k.strip() for k in keywords.split(',') if k.strip()]
         
         # Construct the full output path using the new filename
         output_file_path = os.path.join(output_dir, new_filename)
