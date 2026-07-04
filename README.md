@@ -66,6 +66,7 @@ The application can be configured using command-line arguments or via environmen
 ```ini
 # .env file example
 GEMINI_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-3.1-flash-lite
 INPUT_DIR=/path/to/input/directory
 FILE_PATTERN=*.pdf
 OUTPUT_DIR=/path/to/output/directory
@@ -73,6 +74,8 @@ POLL_INTERVAL=5
 TASK_PAUSE_TIME=60
 CAUTIOUS=false
 ```
+
+The application uses **Gemini 3.1 Flash-Lite** (`gemini-3.1-flash-lite`) by default — Google's most cost-efficient model, well suited to high-volume document processing. You can point it at a different Gemini model by setting `GEMINI_MODEL`.
 
 When using the web portal, these values can also be edited (and persisted to `.env`) from the **Configuration** page.
 
@@ -127,6 +130,11 @@ Each flag has a corresponding environment variable which you can set in your `.e
 - `POLL_INTERVAL`
 - `TASK_PAUSE_TIME`
 - `CAUTIOUS`
+
+In addition, two variables have no command-line flag and are configured via the environment only:
+
+- `GEMINI_KEY` — your Gemini API key (required).
+- `GEMINI_MODEL` — the Gemini model to use (default: `gemini-3.1-flash-lite`).
 
 ## Development
 

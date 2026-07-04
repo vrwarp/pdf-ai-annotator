@@ -33,11 +33,19 @@ load_dotenv()
 gemini_key = os.getenv("GEMINI_KEY")
 client = genai.Client(api_key=gemini_key)
 
-# Configure the Gemini model generation
+# Gemini model used for metadata generation. Defaults to Gemini 3.1 Flash-Lite —
+# Google's most cost-efficient model, well suited to high-volume, low-latency
+# document processing. Override via the GEMINI_MODEL environment variable.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+
+# Configure the Gemini model generation.
+# Note for Gemini 3 models: `top_k` is no longer supported, and Google strongly
+# recommends leaving `temperature` at its default of 1.0 (lower values can cause
+# looping or degraded reasoning). Thinking defaults to the `minimal` level on
+# Flash-Lite, which keeps latency and cost low for this extraction task.
 generation_config = {
     "temperature": 1,
     "top_p": 0.95,
-    "top_k": 64,
     "max_output_tokens": 8192,
     "response_schema": PdfAiAnnotations,
     "response_mime_type": "application/json",
@@ -155,7 +163,7 @@ def process_file(input_file_path, output_dir, cautious=False):
 
     # Request metadata generation from Gemini
     response = client.models.generate_content(
-        model="gemini-flash-latest",
+        model=GEMINI_MODEL,
         config=generation_config,
         contents=[PROMPT, file_obj]
     )

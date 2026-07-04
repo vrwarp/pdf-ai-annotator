@@ -18,6 +18,7 @@ from pdf_ai_annotator import (
     process_file,
     PROMPT,
     generation_config,
+    GEMINI_MODEL,
 )
 
 
@@ -60,6 +61,18 @@ class TestPdfAiAnnotator(unittest.TestCase):
         shutil.rmtree(self.input_dir, ignore_errors=True)
         shutil.rmtree(self.output_dir, ignore_errors=True)
 
+    # ── model / generation config ─────────────────────────────────────────────
+
+    def test_default_model_is_gemini_3_flash_lite(self):
+        """The default model is Gemini 3.1 Flash-Lite unless overridden."""
+        self.assertEqual(GEMINI_MODEL, "gemini-3.1-flash-lite")
+
+    def test_generation_config_omits_unsupported_top_k(self):
+        """Gemini 3 dropped top_k; the config must not send it, and keeps temperature at 1.0."""
+        self.assertNotIn("top_k", generation_config)
+        self.assertEqual(generation_config["temperature"], 1)
+        self.assertEqual(generation_config["response_mime_type"], "application/json")
+
     # ── model schema ──────────────────────────────────────────────────────────
 
     def test_annotations_model_fields(self):
@@ -94,7 +107,7 @@ class TestPdfAiAnnotator(unittest.TestCase):
 
         mock_upload.assert_called_once_with(file=self.dummy_pdf_path)
         mock_generate_content.assert_called_once_with(
-            model="gemini-flash-latest",
+            model=GEMINI_MODEL,
             config=generation_config,
             contents=[PROMPT, "file_obj"],
         )
