@@ -77,7 +77,20 @@ CAUTIOUS=false
 
 The application uses **Gemini 3.1 Flash-Lite** (`gemini-3.1-flash-lite`) by default — Google's most cost-efficient model, well suited to high-volume document processing — configured with a **`medium` thinking level** to balance extraction quality against latency and cost. You can point it at a different Gemini model by setting `GEMINI_MODEL`.
 
-When using the web portal, these values can also be edited (and persisted to `.env`) from the **Configuration** page.
+When using the web portal, these values can also be edited from the **Configuration** page and are persisted to a settings file (see below).
+
+### Configuration precedence
+
+The portal resolves each setting as follows:
+
+1. **Saved settings file** (see `CONFIG_FILE` below) — values saved from the Configuration page take precedence.
+2. **Environment variables** — used as a fallback for any key that is missing or blank in the settings file. This is what you set with `docker run -e ...`.
+
+In other words: environment variables seed the initial configuration, and anything you save in the web UI overrides them and persists across restarts.
+
+### Persisted configuration file (`CONFIG_FILE`)
+
+By default the portal reads and writes settings to `.env` in the working directory. Set `CONFIG_FILE` to store them elsewhere — most useful in Docker, where the image defaults to `CONFIG_FILE=/config/settings.env` and exposes `/config` as a volume. Mount that volume (`-v ./config:/config`) so settings saved from the UI survive container restarts.
 
 ## Usage
 
@@ -107,9 +120,11 @@ Then open [http://localhost:8000](http://localhost:8000) in your browser. From t
 
 - **Dashboard** — see processor status and processing stats.
 - **Files** — upload PDFs into the input directory and browse/delete input and output files.
-- **Configuration** — edit and persist settings to `.env`.
+- **Configuration** — edit and persist settings to the configuration file.
 - **Logs** — tail recent processing logs.
 - Start and stop the background processor via the dashboard controls (`POST /api/processor/start` and `POST /api/processor/stop`).
+
+The background processor **starts automatically** when the portal launches. Set `AUTO_START=false` (in the environment or the settings file) to leave it stopped and control it from the dashboard instead.
 
 ### Command-Line Arguments
 
@@ -131,10 +146,15 @@ Each flag has a corresponding environment variable which you can set in your `.e
 - `TASK_PAUSE_TIME`
 - `CAUTIOUS`
 
-In addition, two variables have no command-line flag and are configured via the environment only:
+In addition, the following variables have no command-line flag and are configured via the environment (or the web portal's settings file):
 
 - `GEMINI_KEY` — your Gemini API key (required).
 - `GEMINI_MODEL` — the Gemini model to use (default: `gemini-3.1-flash-lite`).
+
+The web portal also recognizes these deployment settings:
+
+- `CONFIG_FILE` — path to the persisted settings file (default: `.env`; the Docker image defaults to `/config/settings.env`).
+- `AUTO_START` — whether the background processor starts automatically on launch (default: `true`).
 
 ## Development
 
@@ -179,7 +199,7 @@ You can easily containerize and deploy the application using Docker.
 
 A Docker image is available on Docker Hub at [`vrwarp/pdf-ai-annotator:latest`](https://hub.docker.com/r/vrwarp/pdf-ai-annotator).
 
-By default the container starts the **web portal** on port 8000:
+By default the container starts the **web portal** on port 8000, and the background processor starts automatically. Mount a `/config` volume so settings you save from the UI persist across restarts:
 
 ```bash
 docker run --rm \
@@ -187,10 +207,13 @@ docker run --rm \
   -e GEMINI_KEY=your_gemini_api_key \
   -e INPUT_DIR=/data/input \
   -e OUTPUT_DIR=/data/output \
+  -v "$(pwd)/config:/config" \
   -v "$(pwd)/input:/data/input" \
   -v "$(pwd)/output:/data/output" \
   vrwarp/pdf-ai-annotator:latest
 ```
+
+The `-e` variables provide the initial configuration; anything saved from the portal's Configuration page is written to `/config/settings.env` and takes precedence on subsequent runs. Add `-e AUTO_START=false` if you'd rather start the processor manually from the dashboard.
 
 To run the **headless CLI annotator** instead of the web portal, override the command:
 

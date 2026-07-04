@@ -38,17 +38,23 @@ def portal(monkeypatch, tmp_path):
     """
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
+    config_file = tmp_path / "settings.env"
     input_dir.mkdir()
     output_dir.mkdir()
 
     monkeypatch.setenv("INPUT_DIR", str(input_dir))
     monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
     monkeypatch.setenv("FILE_PATTERN", "*.pdf")
+    # Isolate the config file to a temp path and keep the processor from
+    # auto-starting so the default tests observe a deterministic idle state.
+    monkeypatch.setenv("CONFIG_FILE", str(config_file))
+    monkeypatch.setenv("AUTO_START", "false")
 
     import web_portal
     module = importlib.reload(web_portal)
     module._input_dir = input_dir  # attach for convenience in tests
     module._output_dir = output_dir
+    module._config_file = config_file
     return module
 
 
@@ -146,15 +152,11 @@ def test_delete_missing_file_returns_404(client):
     assert resp.status_code == 404
 
 
-# ── configuration persistence ───────────────────────────────────────────────────
+# ── configuration persistence & precedence ─────────────────────────────────────
 
 
-def test_save_config_writes_env_file(client, monkeypatch, tmp_path):
-    """POST /config persists values to a .env file in the working directory."""
-    workdir = tmp_path / "cfg"
-    workdir.mkdir()
-    monkeypatch.chdir(workdir)
-
+def test_save_config_writes_to_config_file(client, portal):
+    """POST /config persists values to CONFIG_FILE (not a cwd-relative .env)."""
     resp = client.post(
         "/config",
         data={
@@ -170,10 +172,57 @@ def test_save_config_writes_env_file(client, monkeypatch, tmp_path):
     )
     assert resp.status_code == 303
 
-    env_text = (workdir / ".env").read_text()
+    env_text = portal._config_file.read_text()
     assert "GEMINI_KEY" in env_text
     assert "POLL_INTERVAL" in env_text
     assert "/in" in env_text
+
+
+def test_save_config_creates_parent_directory(client, portal, tmp_path, monkeypatch):
+    """Saving works when CONFIG_FILE lives in a not-yet-created directory."""
+    nested = tmp_path / "config" / "settings.env"
+    monkeypatch.setenv("CONFIG_FILE", str(nested))
+    monkeypatch.setattr(portal, "CONFIG_FILE", str(nested))
+
+    resp = client.post(
+        "/config",
+        data={"GEMINI_KEY": "k", "INPUT_DIR": "/in", "OUTPUT_DIR": "/out"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert nested.exists()
+
+
+def test_config_reads_from_environment_when_no_file(client, portal):
+    """With no saved file, config falls back to environment variables.
+
+    This is the Docker `-e` case: values passed via the environment must show
+    up on the pages, not appear blank.
+    """
+    assert not portal._config_file.exists()
+    config = portal._effective_config()
+    assert config["INPUT_DIR"] == str(portal._input_dir)
+
+    resp = client.get("/config")
+    assert resp.status_code == 200
+    assert str(portal._input_dir) in resp.text
+
+
+def test_saved_file_takes_precedence_over_environment(portal, monkeypatch):
+    """A value in the config file wins over the same key in the environment."""
+    monkeypatch.setenv("GEMINI_MODEL", "env-model")
+    portal._config_file.write_text("GEMINI_MODEL=file-model\n")
+
+    assert portal._effective_config()["GEMINI_MODEL"] == "file-model"
+
+
+def test_apply_config_pushes_file_values_into_environment(portal, monkeypatch):
+    """_apply_config_to_env makes os.getenv reflect the file-over-env precedence."""
+    monkeypatch.setenv("POLL_INTERVAL", "5")
+    portal._config_file.write_text("POLL_INTERVAL=42\n")
+
+    portal._apply_config_to_env()
+    assert os.getenv("POLL_INTERVAL") == "42"
 
 
 # ── JSON API ────────────────────────────────────────────────────────────────────
@@ -251,3 +300,41 @@ def test_processor_records_errors(client, portal, monkeypatch):
 
     client.post("/api/processor/stop")
     assert client.get("/api/status").json()["errors"] >= 1
+
+
+# ── auto-start ──────────────────────────────────────────────────────────────────
+
+
+def test_processor_auto_starts_by_default(portal, monkeypatch):
+    """With AUTO_START enabled, the processor launches on app startup."""
+    monkeypatch.setenv("AUTO_START", "true")
+    monkeypatch.setattr("pdf_ai_annotator.process_file", lambda *a, **k: None)
+
+    with TestClient(portal.app) as c:
+        deadline = time.time() + 5
+        while time.time() < deadline and not c.get("/api/status").json()["is_running"]:
+            time.sleep(0.05)
+        assert c.get("/api/status").json()["is_running"] is True
+
+
+def test_processor_does_not_auto_start_when_disabled(portal, monkeypatch):
+    """AUTO_START=false leaves the processor idle until started manually."""
+    monkeypatch.setenv("AUTO_START", "false")
+
+    with TestClient(portal.app) as c:
+        # Give any errant startup thread a moment to appear.
+        time.sleep(0.2)
+        assert c.get("/api/status").json()["is_running"] is False
+
+
+def test_auto_start_flag_parsing(portal, monkeypatch):
+    """AUTO_START accepts common truthy/falsey spellings; file overrides env."""
+    for value, expected in [("true", True), ("1", True), ("yes", True),
+                            ("false", False), ("0", False), ("no", False)]:
+        monkeypatch.setenv("AUTO_START", value)
+        assert portal._auto_start_enabled() is expected
+
+    # A value in the config file takes precedence over the environment.
+    monkeypatch.setenv("AUTO_START", "true")
+    portal._config_file.write_text("AUTO_START=false\n")
+    assert portal._auto_start_enabled() is False

@@ -1,3 +1,4 @@
+import contextlib
 import glob
 import logging
 import os
@@ -7,13 +8,77 @@ from pathlib import Path
 from typing import Optional
 
 import uvicorn
-from dotenv import dotenv_values, load_dotenv, set_key
+from dotenv import dotenv_values, set_key
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-load_dotenv()
+# ── Configuration ─────────────────────────────────────────────────────────────
+
+# Location of the persisted settings file. Defaults to ".env" for local use; the
+# Docker image sets CONFIG_FILE=/config/settings.env and exposes /config as a
+# volume so settings survive container restarts when the volume is mounted.
+CONFIG_FILE = os.getenv("CONFIG_FILE", ".env")
+
+# Settings the portal manages. The saved config file takes precedence; an
+# environment variable (e.g. one passed via `docker run -e`) is the fallback for
+# any key missing or blank in the file.
+CONFIG_KEYS = [
+    "GEMINI_KEY",
+    "GEMINI_MODEL",
+    "INPUT_DIR",
+    "OUTPUT_DIR",
+    "FILE_PATTERN",
+    "POLL_INTERVAL",
+    "TASK_PAUSE_TIME",
+    "CAUTIOUS",
+]
+
+
+def _effective_config() -> dict:
+    """Return the effective configuration.
+
+    A value saved in ``CONFIG_FILE`` wins; when a key is absent or blank there,
+    the corresponding environment variable is used as a fallback. Keys with no
+    value from either source are omitted so template ``.get(key, default)``
+    fallbacks continue to work.
+    """
+    file_cfg = dotenv_values(CONFIG_FILE) if os.path.exists(CONFIG_FILE) else {}
+    cfg = {}
+    for key in CONFIG_KEYS:
+        value = file_cfg.get(key)
+        if value in (None, ""):
+            value = os.getenv(key, "")
+        if value != "":
+            cfg[key] = value
+    return cfg
+
+
+def _apply_config_to_env() -> None:
+    """Push the effective config into ``os.environ``.
+
+    The background processor and the annotator read configuration via
+    ``os.getenv``; applying the merged config here makes them observe the same
+    "file wins, environment is the fallback" precedence as the portal pages.
+    """
+    for key, value in _effective_config().items():
+        os.environ[key] = value
+
+
+def _auto_start_enabled() -> bool:
+    """Whether the processor should start automatically on launch.
+
+    Enabled by default; set ``AUTO_START=false`` (in the config file or the
+    environment) to disable it.
+    """
+    file_cfg = dotenv_values(CONFIG_FILE) if os.path.exists(CONFIG_FILE) else {}
+    value = file_cfg.get("AUTO_START") or os.getenv("AUTO_START", "true")
+    return value.strip().lower() in ("true", "1", "yes")
+
+
+# Seed the environment from the persisted config at import time.
+_apply_config_to_env()
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 
@@ -42,7 +107,20 @@ logger = logging.getLogger("portal")
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="PDF AI Annotator")
+
+@contextlib.asynccontextmanager
+async def lifespan(app: "FastAPI"):
+    """Auto-start the background processor on launch unless AUTO_START is off."""
+    if _auto_start_enabled():
+        if _start_processor():
+            logger.info("Processor auto-started (set AUTO_START=false to disable).")
+    else:
+        logger.info("Auto-start disabled (AUTO_START=false).")
+    yield
+    _stop_event.set()
+
+
+app = FastAPI(title="PDF AI Annotator", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -97,6 +175,22 @@ def _run_processor() -> None:
     logger.info("Processor stopped.")
 
 
+def _start_processor() -> bool:
+    """Start the background processor thread if it is not already running.
+
+    Returns True if a new thread was started, False if one was already alive.
+    """
+    global _processor_thread, _stop_event
+    if _processor_thread and _processor_thread.is_alive():
+        return False
+    _stop_event = threading.Event()
+    with _stats_lock:
+        _stats["started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    _processor_thread = threading.Thread(target=_run_processor, daemon=True, name="annotator")
+    _processor_thread.start()
+    return True
+
+
 # ── Page routes ───────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
@@ -104,7 +198,7 @@ async def dashboard(request: Request):
     is_running = _processor_thread is not None and _processor_thread.is_alive()
     with _stats_lock:
         s = dict(_stats)
-    config = dotenv_values(".env") if os.path.exists(".env") else {}
+    config = _effective_config()
     return templates.TemplateResponse(request, "dashboard.html", {
         "is_running": is_running,
         "stats": s,
@@ -173,7 +267,7 @@ async def delete_file(location: str, filename: str):
 
 @app.get("/config", response_class=HTMLResponse)
 async def config_page(request: Request, saved: str = ""):
-    config = dotenv_values(".env") if os.path.exists(".env") else {}
+    config = _effective_config()
     return templates.TemplateResponse(request, "config.html", {
         "config": config,
         "saved": bool(saved),
@@ -190,7 +284,12 @@ async def save_config(
     TASK_PAUSE_TIME: str = Form("60"),
     CAUTIOUS: str = Form("false"),
 ):
-    env_file = ".env"
+    env_file = CONFIG_FILE
+    # Ensure the config file (and its parent directory, e.g. a mounted /config
+    # volume) exists before writing.
+    parent = os.path.dirname(env_file)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     if not os.path.exists(env_file):
         Path(env_file).touch()
     for key, val in [
@@ -203,8 +302,9 @@ async def save_config(
         ("CAUTIOUS", CAUTIOUS),
     ]:
         set_key(env_file, key, val)
-    load_dotenv(override=True)
-    logger.info("Configuration saved.")
+    # Re-apply so the processor and pages immediately see the saved values.
+    _apply_config_to_env()
+    logger.info(f"Configuration saved to {env_file}.")
     return RedirectResponse("/config?saved=1", status_code=303)
 
 
@@ -234,14 +334,8 @@ async def api_status():
 
 @app.post("/api/processor/start")
 async def api_start():
-    global _processor_thread, _stop_event
-    if _processor_thread and _processor_thread.is_alive():
+    if not _start_processor():
         return {"status": "already_running"}
-    _stop_event = threading.Event()
-    with _stats_lock:
-        _stats["started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    _processor_thread = threading.Thread(target=_run_processor, daemon=True, name="annotator")
-    _processor_thread.start()
     return {"status": "started"}
 
 
