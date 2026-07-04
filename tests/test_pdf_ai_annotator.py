@@ -73,6 +73,12 @@ class TestPdfAiAnnotator(unittest.TestCase):
         self.assertEqual(generation_config["temperature"], 1)
         self.assertEqual(generation_config["response_mime_type"], "application/json")
 
+    def test_generation_config_uses_medium_thinking(self):
+        """The model is configured to reason at the 'medium' thinking level."""
+        thinking_level = generation_config["thinking_config"].thinking_level
+        # ThinkingLevel is an enum whose value/name resolves to "medium".
+        self.assertEqual(str(thinking_level.value).lower(), "medium")
+
     # ── model schema ──────────────────────────────────────────────────────────
 
     def test_annotations_model_fields(self):

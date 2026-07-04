@@ -75,7 +75,7 @@ TASK_PAUSE_TIME=60
 CAUTIOUS=false
 ```
 
-The application uses **Gemini 3.1 Flash-Lite** (`gemini-3.1-flash-lite`) by default — Google's most cost-efficient model, well suited to high-volume document processing. You can point it at a different Gemini model by setting `GEMINI_MODEL`.
+The application uses **Gemini 3.1 Flash-Lite** (`gemini-3.1-flash-lite`) by default — Google's most cost-efficient model, well suited to high-volume document processing — configured with a **`medium` thinking level** to balance extraction quality against latency and cost. You can point it at a different Gemini model by setting `GEMINI_MODEL`.
 
 When using the web portal, these values can also be edited (and persisted to `.env`) from the **Configuration** page.
 

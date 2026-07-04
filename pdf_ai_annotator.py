@@ -41,12 +41,13 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 # Configure the Gemini model generation.
 # Note for Gemini 3 models: `top_k` is no longer supported, and Google strongly
 # recommends leaving `temperature` at its default of 1.0 (lower values can cause
-# looping or degraded reasoning). Thinking defaults to the `minimal` level on
-# Flash-Lite, which keeps latency and cost low for this extraction task.
+# looping or degraded reasoning). `thinking_level` sets how much the model
+# reasons before answering; "medium" balances quality against latency and cost.
 generation_config = {
     "temperature": 1,
     "top_p": 0.95,
     "max_output_tokens": 8192,
+    "thinking_config": genai.types.ThinkingConfig(thinking_level="medium"),
     "response_schema": PdfAiAnnotations,
     "response_mime_type": "application/json",
 }
