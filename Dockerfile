@@ -17,6 +17,17 @@ COPY web_portal.py .
 COPY templates/ templates/
 COPY static/ static/
 
+# Persist portal configuration to a mountable volume. Settings saved from the
+# web UI are written to /config/settings.env, which survives restarts when the
+# /config volume is mounted (e.g. -v ./config:/config).
+ENV CONFIG_FILE=/config/settings.env
+RUN mkdir -p /config
+VOLUME ["/config"]
+
+# The background processor starts automatically on launch. Set AUTO_START=false
+# to disable and control it from the dashboard instead.
+ENV AUTO_START=true
+
 # Expose the web management portal port.
 EXPOSE 8000
 
