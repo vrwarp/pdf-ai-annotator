@@ -1,6 +1,8 @@
 # Runtime dependencies. Lower bounds are set for feature support (Gemini 3
 # models require a recent google-genai) and security fixes.
-google-genai>=1.40.0
+# google-genai>=2.0.0 is required for the Gemini 3 `thinking_level` parameter;
+# earlier releases only expose the legacy `thinking_budget` field.
+google-genai>=2.0.0
 pikepdf>=9.0.0
 pydantic>=2.0.0
 python-dotenv>=1.0.0
