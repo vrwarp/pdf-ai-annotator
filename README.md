@@ -155,10 +155,9 @@ No Gemini API key is required to run the tests — a placeholder key is injected
 
 ### Continuous Integration
 
-Every push and pull request to `main` runs the [CI workflow](.github/workflows/ci.yml), which:
+Every push and pull request to `main` runs the [CI workflow](.github/workflows/ci.yml), which runs the test suite across Python 3.9, 3.11, and 3.12.
 
-- Runs the test suite across Python 3.9, 3.11, and 3.12.
-- Builds the Docker image to verify the `Dockerfile`.
+Pull requests also trigger a **dry run** of the [Docker Publish workflow](.github/workflows/docker-publish.yml): it builds the image (without pushing) so the `Dockerfile` and the full publish path are validated before merge.
 
 ### Docstrings
 
@@ -205,7 +204,7 @@ docker build -t pdf-ai-annotator:local .
 
 ### Automated Publishing
 
-The image is published to Docker Hub automatically by the [Docker Publish workflow](.github/workflows/docker-publish.yml) whenever changes are merged to `main` (tagged `latest` and with the short commit SHA), and whenever a `v*` version tag is pushed (tagged with the corresponding semantic version).
+The image is published to Docker Hub automatically by the [Docker Publish workflow](.github/workflows/docker-publish.yml) whenever changes are merged to `main` (tagged `latest` and with the short commit SHA), and whenever a `v*` version tag is pushed (tagged with the corresponding semantic version). On pull requests the same workflow runs as a dry run — it builds the image but does not push it.
 
 Publishing requires two repository secrets to be configured under **Settings → Secrets and variables → Actions**:
 
