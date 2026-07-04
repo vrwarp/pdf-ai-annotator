@@ -29,7 +29,7 @@ A Docker image is also available at Docker Hub:
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.10+ (required by google-genai 2.x / Gemini 3 support)
 - Gemini AI API key (set as `GEMINI_KEY`)
 - The Python libraries listed in [`requirements.txt`](requirements.txt), including:
   - [google-genai](https://pypi.org/project/google-genai/)
@@ -163,7 +163,7 @@ No Gemini API key is required to run the tests — a placeholder key is injected
 
 ### Continuous Integration
 
-Every push and pull request to `main` runs the [CI workflow](.github/workflows/ci.yml), which runs the test suite across Python 3.9, 3.11, and 3.12.
+Every push and pull request to `main` runs the [CI workflow](.github/workflows/ci.yml), which runs the test suite across Python 3.10, 3.11, and 3.12.
 
 Pull requests also trigger a **dry run** of the [Docker Publish workflow](.github/workflows/docker-publish.yml): it builds the image (without pushing) so the `Dockerfile` and the full publish path are validated before merge.
 
