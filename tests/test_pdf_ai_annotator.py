@@ -1,39 +1,40 @@
-import unittest
+"""Unit tests for the CLI annotator (``pdf_ai_annotator``).
+
+These tests exercise the core ``process_file`` logic in isolation.  All calls to
+the Gemini API and to ``pikepdf`` are mocked so the tests are fast, deterministic
+and require no network access or API key.
+"""
+
 import os
-import tempfile
 import shutil
-from unittest.mock import patch, mock_open
-from pydantic import ValidationError
+import tempfile
+import unittest
+from unittest.mock import patch
+
 import pikepdf
-from google import genai
+
 from pdf_ai_annotator import (
     PdfAiAnnotations,
     process_file,
     PROMPT,
     generation_config,
-)  # Assuming your file is named pdf_ai_annotator.py
+    GEMINI_MODEL,
+)
 
 
 class TestPdfAiAnnotator(unittest.TestCase):
-    """
-    Unit tests for the PdfAiAnnotator application.
-    """
+    """Unit tests for the ``PdfAiAnnotator`` application."""
 
     def setUp(self):
-        """
-        Sets up the test environment by creating temporary directories and a dummy PDF file.
-        """
-        # Create temporary directories for input and output
+        """Create temporary input/output directories and a dummy PDF file."""
         self.input_dir = tempfile.mkdtemp()
         self.output_dir = tempfile.mkdtemp()
 
-        # Create a dummy PDF file for testing
         self.dummy_pdf_path = os.path.join(self.input_dir, "dummy.pdf")
-
         with pikepdf.Pdf.new() as pdf:
             pdf.save(self.dummy_pdf_path)
 
-        # Sample data for mocking Gemini's response
+        # Sample data for mocking Gemini's response.
         self.sample_gemini_response = {
             "summary": "This is a test summary.",
             "keywords": "test, summary, pdf",
@@ -41,26 +42,54 @@ class TestPdfAiAnnotator(unittest.TestCase):
             "filename": "20240101_TestCategory_TestSource_TestDescription_TestDetails.pdf",
         }
 
+        # Responses that should cause processing to halt before saving.
         self.invalid_gemini_responses = [
-            PdfAiAnnotations(summary="", keywords="", title="", filename=""),  # All empty
-            PdfAiAnnotations(summary="This is a test summary.", keywords="test, summary, pdf", title="Test Document", filename=""),  # missing filename
-            PdfAiAnnotations(summary="This is a test summary.", keywords="test, summary, pdf", title="", filename="valid_filename.pdf"),  # missing title
-            PdfAiAnnotations(summary="", keywords="test, summary, pdf", title="Test Document", filename="valid_filename.pdf"),  # missing summary
-            PdfAiAnnotations(summary="This is a test summary.", keywords="", title="Test Document", filename="valid_filename.pdf"),  # missing keywords
-            PdfAiAnnotations(summary="This is a test summary.", keywords="test, summary, pdf", title="Test Document", filename="invalid_filename"),  # wrong extension
-            PdfAiAnnotations(summary="", keywords="test, summary, pdf", title="Test Document", filename="20240101_TestCategory_TestSource_TestDescription_TestDetails.pdf"),  # empty summary
-            PdfAiAnnotations(summary="This is a test summary.", keywords="", title="Test Document", filename="20240101_TestCategory_TestSource_TestDescription_TestDetails.pdf"),  # empty keywords
-            PdfAiAnnotations(summary="This is a test summary.", keywords="test, summary, pdf", title="", filename="20240101_TestCategory_TestSource_TestDescription_TestDetails.pdf"),  # empty title
-            PdfAiAnnotations(summary="This is a test summary.", keywords="test, summary, pdf", title="Test Document", filename=""),  # empty filename
+            PdfAiAnnotations(summary="", keywords="", title="", filename=""),
+            PdfAiAnnotations(summary="This is a test summary.", keywords="test, summary, pdf", title="Test Document", filename=""),
+            PdfAiAnnotations(summary="This is a test summary.", keywords="test, summary, pdf", title="", filename="valid_filename.pdf"),
+            PdfAiAnnotations(summary="", keywords="test, summary, pdf", title="Test Document", filename="valid_filename.pdf"),
+            PdfAiAnnotations(summary="This is a test summary.", keywords="", title="Test Document", filename="valid_filename.pdf"),
+            PdfAiAnnotations(summary="This is a test summary.", keywords="test, summary, pdf", title="Test Document", filename="invalid_filename"),
+            PdfAiAnnotations(summary="", keywords="test, summary, pdf", title="Test Document", filename="20240101_TestCategory_TestSource_TestDescription_TestDetails.pdf"),
+            PdfAiAnnotations(summary="This is a test summary.", keywords="", title="Test Document", filename="20240101_TestCategory_TestSource_TestDescription_TestDetails.pdf"),
+            PdfAiAnnotations(summary="This is a test summary.", keywords="test, summary, pdf", title="", filename="20240101_TestCategory_TestSource_TestDescription_TestDetails.pdf"),
+            PdfAiAnnotations(summary="This is a test summary.", keywords="test, summary, pdf", title="Test Document", filename=""),
         ]
 
     def tearDown(self):
-        """
-        Cleans up the test environment by removing the temporary directories.
-        """
-        # Clean up temporary directories
-        shutil.rmtree(self.input_dir)
-        shutil.rmtree(self.output_dir)
+        """Remove temporary directories."""
+        shutil.rmtree(self.input_dir, ignore_errors=True)
+        shutil.rmtree(self.output_dir, ignore_errors=True)
+
+    # ── model / generation config ─────────────────────────────────────────────
+
+    def test_default_model_is_gemini_3_flash_lite(self):
+        """The default model is Gemini 3.1 Flash-Lite unless overridden."""
+        self.assertEqual(GEMINI_MODEL, "gemini-3.1-flash-lite")
+
+    def test_generation_config_omits_unsupported_top_k(self):
+        """Gemini 3 dropped top_k; the config must not send it, and keeps temperature at 1.0."""
+        self.assertNotIn("top_k", generation_config)
+        self.assertEqual(generation_config["temperature"], 1)
+        self.assertEqual(generation_config["response_mime_type"], "application/json")
+
+    def test_generation_config_uses_medium_thinking(self):
+        """The model is configured to reason at the 'medium' thinking level."""
+        thinking_level = generation_config["thinking_config"].thinking_level
+        # ThinkingLevel is an enum whose value/name resolves to "medium".
+        self.assertEqual(str(thinking_level.value).lower(), "medium")
+
+    # ── model schema ──────────────────────────────────────────────────────────
+
+    def test_annotations_model_fields(self):
+        """The Pydantic model exposes the four expected metadata fields."""
+        ann = PdfAiAnnotations(**self.sample_gemini_response)
+        self.assertEqual(ann.summary, "This is a test summary.")
+        self.assertEqual(ann.keywords, "test, summary, pdf")
+        self.assertEqual(ann.title, "Test Document")
+        self.assertEqual(ann.filename, self.sample_gemini_response["filename"])
+
+    # ── happy path ────────────────────────────────────────────────────────────
 
     @patch("os.remove")
     @patch("pikepdf.open", autospec=True)
@@ -73,26 +102,18 @@ class TestPdfAiAnnotator(unittest.TestCase):
         mock_pikepdf_open,
         mock_os_remove,
     ):
-        """
-        Tests the successful processing of a file.
-
-        Verifies that the file is uploaded, metadata is generated and applied,
-        the file is saved to the correct location, and the original file is removed.
-        """
-        # Arrange
+        """A valid response uploads, applies metadata, saves, and deletes the original."""
         mock_upload.return_value = "file_obj"
         mock_generate_content.return_value.parsed = PdfAiAnnotations(**self.sample_gemini_response)
 
         mock_pdf = mock_pikepdf_open.return_value.__enter__.return_value
         mock_meta = mock_pdf.open_metadata.return_value.__enter__.return_value
 
-        # Act
         process_file(self.dummy_pdf_path, self.output_dir)
 
-        # Assert
         mock_upload.assert_called_once_with(file=self.dummy_pdf_path)
         mock_generate_content.assert_called_once_with(
-            model="gemini-flash-latest",
+            model=GEMINI_MODEL,
             config=generation_config,
             contents=[PROMPT, "file_obj"],
         )
@@ -107,32 +128,27 @@ class TestPdfAiAnnotator(unittest.TestCase):
         mock_pdf.save.assert_called_once_with(expected_output_file_path)
         mock_os_remove.assert_called_once_with(self.dummy_pdf_path)
 
+    # ── cautious mode ─────────────────────────────────────────────────────────
+
     @patch("os.remove")
     @patch("pikepdf.open", autospec=True)
     @patch("pdf_ai_annotator.client.files.upload")
     @patch("pdf_ai_annotator.client.models.generate_content")
-    def test_process_file_success_cautious_skip_save(
+    def test_process_file_cautious_skip_save(
         self,
         mock_generate_content,
         mock_upload,
         mock_pikepdf_open,
         mock_os_remove,
     ):
-        """
-        Tests cautious mode where the user declines to save the file.
-
-        Verifies that `save` and `remove` are not called.
-        """
-        # Arrange
+        """Declining the save prompt leaves both save and remove uncalled."""
         mock_upload.return_value = "file_obj"
         mock_generate_content.return_value.parsed = PdfAiAnnotations(**self.sample_gemini_response)
         mock_pdf = mock_pikepdf_open.return_value.__enter__.return_value
 
         with patch("builtins.input", return_value="n"):
-            # Act
             process_file(self.dummy_pdf_path, self.output_dir, cautious=True)
 
-        # Assert
         mock_pdf.save.assert_not_called()
         mock_os_remove.assert_not_called()
 
@@ -140,87 +156,66 @@ class TestPdfAiAnnotator(unittest.TestCase):
     @patch("pikepdf.open", autospec=True)
     @patch("pdf_ai_annotator.client.files.upload")
     @patch("pdf_ai_annotator.client.models.generate_content")
-    def test_process_file_success_cautious_skip_delete(
+    def test_process_file_cautious_skip_delete(
         self,
         mock_generate_content,
         mock_upload,
         mock_pikepdf_open,
         mock_os_remove,
     ):
-        """
-        Tests cautious mode where the user saves the file but declines to delete the original.
-
-        Verifies that `save` is called but `remove` is not.
-        """
-        # Arrange
+        """Saving but declining deletion calls save once and never removes."""
         mock_upload.return_value = "file_obj"
         mock_generate_content.return_value.parsed = PdfAiAnnotations(**self.sample_gemini_response)
         mock_pdf = mock_pikepdf_open.return_value.__enter__.return_value
 
         with patch("builtins.input", side_effect=["y", "n"]):
-            # Act
             process_file(self.dummy_pdf_path, self.output_dir, cautious=True)
 
-        # Assert
         mock_pdf.save.assert_called_once()
         mock_os_remove.assert_not_called()
-
 
     @patch("os.remove")
     @patch("pikepdf.open", autospec=True)
     @patch("pdf_ai_annotator.client.files.upload")
     @patch("pdf_ai_annotator.client.models.generate_content")
-    def test_process_file_cautious_mode(
-            self,
-            mock_generate_content,
-            mock_upload,
-            mock_pikepdf_open,
-            mock_os_remove
+    def test_process_file_cautious_confirm_all(
+        self,
+        mock_generate_content,
+        mock_upload,
+        mock_pikepdf_open,
+        mock_os_remove,
     ):
-        """
-        Tests successful processing in cautious mode with user confirmation.
-
-        Verifies that both `save` and `remove` are called when the user confirms both.
-        """
-        # Arrange
+        """Confirming both prompts calls both save and remove."""
         mock_upload.return_value = "file_obj"
         mock_generate_content.return_value.parsed = PdfAiAnnotations(**self.sample_gemini_response)
-
         mock_pdf = mock_pikepdf_open.return_value.__enter__.return_value
+
         with patch("builtins.input", side_effect=["y", "y"]):
-            # Act
-            mock_pikepdf_open.return_value.__enter__.return_value.save.return_value = None
             process_file(self.dummy_pdf_path, self.output_dir, cautious=True)
 
-        # Assert
         mock_pdf.save.assert_called_once()
         mock_os_remove.assert_called_once()
+
+    # ── validation / error handling ───────────────────────────────────────────
 
     @patch("os.remove")
     @patch("pikepdf.open", autospec=True)
     @patch("pdf_ai_annotator.client.files.upload")
     @patch("pdf_ai_annotator.client.models.generate_content")
     def test_process_file_missing_metadata(
-            self,
-            mock_generate_content,
-            mock_upload,
-            mock_pikepdf_open,
-            mock_os_remove
+        self,
+        mock_generate_content,
+        mock_upload,
+        mock_pikepdf_open,
+        mock_os_remove,
     ):
-        """
-        Tests that processing halts if any required metadata is missing from the API response.
-
-        Verifies that `save` and `remove` are not called for invalid responses.
-        """
+        """Any missing/invalid metadata field halts before opening or removing files."""
         for invalid_response in self.invalid_gemini_responses:
-            # Arrange
             mock_upload.return_value = "file_obj"
             mock_generate_content.return_value.parsed = invalid_response
 
-            # Act
             process_file(self.dummy_pdf_path, self.output_dir)
 
-            # Assert
             mock_os_remove.assert_not_called()
             mock_pikepdf_open.assert_not_called()
 
@@ -235,29 +230,21 @@ class TestPdfAiAnnotator(unittest.TestCase):
         mock_pikepdf_open,
         mock_os_remove,
     ):
-        # Arrange
-        malicious_filename = "../malicious.pdf"
-        sanitized_filename = "malicious.pdf"
-
+        """A filename containing path traversal is reduced to its basename."""
         malicious_response = {
             "summary": "Summary",
             "keywords": "Keywords",
             "title": "Title",
-            "filename": malicious_filename,
+            "filename": "../malicious.pdf",
         }
-
         mock_upload.return_value = "file_obj"
         mock_generate_content.return_value.parsed = PdfAiAnnotations(**malicious_response)
-
         mock_pdf = mock_pikepdf_open.return_value.__enter__.return_value
 
-        # Act
         process_file(self.dummy_pdf_path, self.output_dir)
 
-        # Assert
-        expected_path = os.path.join(self.output_dir, sanitized_filename)
+        expected_path = os.path.join(self.output_dir, "malicious.pdf")
         mock_pdf.save.assert_called_once_with(expected_path)
-
 
     @patch("os.remove")
     @patch("pikepdf.open", autospec=True)
@@ -270,35 +257,44 @@ class TestPdfAiAnnotator(unittest.TestCase):
         mock_pikepdf_open,
         mock_os_remove,
     ):
-        """
-        Tests processing when input and output files are the same.
-
-        Verifies that allow_overwriting_input=True is used and deletion is skipped.
-        """
-        # Arrange
+        """When input and output resolve to the same path, deletion is skipped."""
         mock_upload.return_value = "file_obj"
 
-        # Setup mock response where filename matches input filename
         input_filename = os.path.basename(self.dummy_pdf_path)
         response_data = self.sample_gemini_response.copy()
-        response_data['filename'] = input_filename
+        response_data["filename"] = input_filename
         mock_generate_content.return_value.parsed = PdfAiAnnotations(**response_data)
+
+        mock_pdf = mock_pikepdf_open.return_value.__enter__.return_value
+
+        # Use the input directory as the output directory so the paths match.
+        process_file(self.dummy_pdf_path, self.input_dir)
+
+        mock_pikepdf_open.assert_called_once_with(self.dummy_pdf_path, allow_overwriting_input=True)
+        mock_pdf.save.assert_called_once_with(self.dummy_pdf_path)
+        mock_os_remove.assert_not_called()
+
+    @patch("pikepdf.open", autospec=True)
+    @patch("pdf_ai_annotator.client.files.upload")
+    @patch("pdf_ai_annotator.client.models.generate_content")
+    def test_process_file_applies_all_metadata_keys(
+        self,
+        mock_generate_content,
+        mock_upload,
+        mock_pikepdf_open,
+    ):
+        """Exactly the three XMP metadata keys are written to the PDF."""
+        mock_upload.return_value = "file_obj"
+        mock_generate_content.return_value.parsed = PdfAiAnnotations(**self.sample_gemini_response)
 
         mock_pdf = mock_pikepdf_open.return_value.__enter__.return_value
         mock_meta = mock_pdf.open_metadata.return_value.__enter__.return_value
 
-        # Act
-        # Use same directory for output so path resolves to same file
-        process_file(self.dummy_pdf_path, self.input_dir)
+        with patch("os.remove"):
+            process_file(self.dummy_pdf_path, self.output_dir)
 
-        # Assert
-        mock_pikepdf_open.assert_called_once_with(self.dummy_pdf_path, allow_overwriting_input=True)
-
-        # Verify save called with same path
-        mock_pdf.save.assert_called_once_with(self.dummy_pdf_path)
-
-        # Verify deletion was skipped (since we overwrote the file)
-        mock_os_remove.assert_not_called()
+        written_keys = {call.args[0] for call in mock_meta.__setitem__.call_args_list}
+        self.assertEqual(written_keys, {"dc:title", "dc:description", "dc:subject"})
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+# Development / test dependencies.
+# Install alongside the runtime requirements:
+#   pip install -r requirements.txt -r requirements-dev.txt
+-r requirements.txt
+pytest>=8.0.0
+httpx>=0.27.0
