@@ -105,8 +105,7 @@ async def dashboard(request: Request):
     with _stats_lock:
         s = dict(_stats)
     config = dotenv_values(".env") if os.path.exists(".env") else {}
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "dashboard.html", {
         "is_running": is_running,
         "stats": s,
         "config": config,
@@ -132,8 +131,7 @@ async def files_page(request: Request, msg: str = ""):
                 })
         return sorted(result, key=lambda x: x["modified"], reverse=True)
 
-    return templates.TemplateResponse("files.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "files.html", {
         "input_files": list_dir(input_dir),
         "output_files": list_dir(output_dir),
         "input_dir": input_dir,
@@ -176,8 +174,7 @@ async def delete_file(location: str, filename: str):
 @app.get("/config", response_class=HTMLResponse)
 async def config_page(request: Request, saved: str = ""):
     config = dotenv_values(".env") if os.path.exists(".env") else {}
-    return templates.TemplateResponse("config.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "config.html", {
         "config": config,
         "saved": bool(saved),
     })
@@ -215,8 +212,7 @@ async def save_config(
 async def logs_page(request: Request):
     with _log_lock:
         recent = list(_log_records[-200:])
-    return templates.TemplateResponse("logs.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "logs.html", {
         "logs": recent,
     })
 
