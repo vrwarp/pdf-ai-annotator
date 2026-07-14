@@ -2,6 +2,7 @@ import contextlib
 import glob
 import logging
 import os
+import shutil
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -263,6 +264,23 @@ async def delete_file(location: str, filename: str):
     os.remove(path)
     logger.info(f"Deleted {filename} from {location}")
     return RedirectResponse("/files?msg=deleted", status_code=303)
+
+
+@app.post("/files/reprocess/{filename:path}")
+async def reprocess_file(filename: str):
+    """Move an output file back to the input directory for reprocessing."""
+    input_dir = os.getenv("INPUT_DIR", "")
+    output_dir = os.getenv("OUTPUT_DIR", "")
+    if not input_dir or not output_dir:
+        raise HTTPException(400, "Input/Output directory not configured")
+    safe_name = os.path.basename(filename)
+    src = os.path.join(output_dir, safe_name)
+    if not os.path.isfile(src):
+        raise HTTPException(404, "File not found")
+    dest = os.path.join(input_dir, safe_name)
+    shutil.move(src, dest)
+    logger.info(f"Requeued for reprocessing: {safe_name}")
+    return RedirectResponse("/files?msg=requeued", status_code=303)
 
 
 @app.get("/config", response_class=HTMLResponse)
