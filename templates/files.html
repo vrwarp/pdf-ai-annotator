@@ -24,6 +24,13 @@
     </svg>
     File deleted.
   </div>
+  {% elif msg == 'requeued' %}
+  <div class="mb-6 flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 text-sm px-4 py-3 rounded-lg">
+    <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+    File moved back to the input directory for reprocessing.
+  </div>
   {% endif %}
 
   <!-- Upload -->
@@ -143,16 +150,28 @@
               <p class="text-xs text-gray-400">{{ f.size_kb }} KB · {{ f.modified }}</p>
             </div>
           </div>
-          <form method="post" action="/files/delete/output/{{ f.name }}"
-                onsubmit="return confirm('Delete {{ f.name }}?')">
-            <button type="submit"
-              class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity p-1 rounded">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-          </form>
+          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <form method="post" action="/files/reprocess/{{ f.name }}"
+                  onsubmit="return confirm('Move {{ f.name }} back to the input directory for reprocessing?')">
+              <button type="submit" title="Reprocess"
+                class="text-gray-400 hover:text-indigo-500 p-1 rounded">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </form>
+            <form method="post" action="/files/delete/output/{{ f.name }}"
+                  onsubmit="return confirm('Delete {{ f.name }}?')">
+              <button type="submit" title="Delete"
+                class="text-gray-400 hover:text-red-500 p-1 rounded">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </form>
+          </div>
         </li>
         {% endfor %}
       </ul>

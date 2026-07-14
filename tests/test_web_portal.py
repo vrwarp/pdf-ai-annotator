@@ -152,6 +152,22 @@ def test_delete_missing_file_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_reprocess_moves_file_from_output_to_input(client, portal):
+    target = portal._output_dir / "done.pdf"
+    target.write_bytes(b"%PDF-1.4\n")
+
+    resp = client.post("/files/reprocess/done.pdf", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/files?msg=requeued"
+    assert not target.exists()
+    assert (portal._input_dir / "done.pdf").exists()
+
+
+def test_reprocess_missing_file_returns_404(client):
+    resp = client.post("/files/reprocess/nope.pdf", follow_redirects=False)
+    assert resp.status_code == 404
+
+
 # ── configuration persistence & precedence ─────────────────────────────────────
 
 
